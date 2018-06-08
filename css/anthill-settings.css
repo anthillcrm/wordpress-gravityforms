@@ -1,0 +1,4 @@
+#anthill_data_tabs table {font-size:0.9em;}
+#anthill_data_tabs tr {text-align: left; vertical-align: top; }
+#anthill_data_tabs tr.field td {border-top:1px solid #CCC;}
+#anthill_data_tabs th, #anthill_data_tabs td {padding: 2px 10px;}
