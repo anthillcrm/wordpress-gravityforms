@@ -163,19 +163,35 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 		} else {
 			$customerid = Anthill::CreateCustomer($customerData);
 		}
+		
+	} catch (Exception $e) {
+		GFCommon::log_debug( 'gform_after_submission: Customer: ' . print_r( $e->getMessage(), 1 ) );
+		
+	}		
 
-		$customerContactData['customerId'] = $customerid;
-		$contactData['customerId'] = $customerid;
-		if ($contactid) {
-			Anthill::EditCustomerContact($contactid,$customerContactData);
-		} else {
-			Anthill::AddCustomerContact($customerContactData);
+	try {
+		if ($customer_contact_type_id) {
+			$customerContactData['customerId'] = $customerid;
+			$contactData['customerId'] = $customerid;
+			if ($contactid) {
+				Anthill::EditCustomerContact($contactid,$customerContactData);
+			} else {
+				Anthill::AddCustomerContact($customerContactData);
+			}
 		}
 		
+	} catch (Exception $e) {
+		GFCommon::log_debug( 'gform_after_submission: Customer Contact: ' . print_r( $e->getMessage(), 1 ). print_r($customerContactData,1) );
+		
+	}
+
+	
+	try {
+		$contactData['customerId'] = $customerid;
 		Anthill::CreateContact($contact_type,$contactData);
 
 	} catch (Exception $e) {
-		die($e->getMessage().json_encode($customerData));
+		GFCommon::log_debug( 'gform_after_submission: Contact: ' . print_r( $e->getMessage(), 1 ). print_r($contactData,1) );
 		
 	}
     
