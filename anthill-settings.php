@@ -6,7 +6,7 @@ function anthill_enqueue_admin_settings() {
 
 	if (isset($_GET['page']) && $_GET['page'] == 'anthill') {
 		wp_enqueue_script('jquery-ui-tabs');
-		wp_enqueue_style('jquery-ui','http://ajax.googleapis.com/ajax/libs/jqueryui/'.$wp_scripts->registered['jquery-ui-core']->ver.'/themes/smoothness/jquery-ui.css');
+		wp_enqueue_style('jquery-ui','https://ajax.googleapis.com/ajax/libs/jqueryui/'.$wp_scripts->registered['jquery-ui-core']->ver.'/themes/smoothness/jquery-ui.css');
 		wp_register_style('anthill_admin_settings_css', plugins_url('/css/anthill-settings.css',__FILE__), array(), '1.0.0' );
 		wp_enqueue_style('anthill_admin_settings_css');
 	}
@@ -67,6 +67,8 @@ function anthill_settings() {
 					try {
 						update_option( 'anthill_username', $anthill_username );
 						update_option( 'anthill_key', $anthill_key );
+						
+						Anthill::GetLocations(); // Test connection to see if credentials work
 
 						$updated = 'Settings updated. Connected to Anthill';
 					} catch (Exception $e) {

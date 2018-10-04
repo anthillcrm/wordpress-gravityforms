@@ -102,7 +102,17 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 					$customerContactData['contactModel']['Telephone'] = $entry[$field->id];
 					break;
 				case 'email':
-					$customerContactData['contactModel']['Email'] = $entry[$field->id];
+					switch ($type) {
+						case 'customer':
+							$customerData['customer']['CustomFields']['Email'] = $entry[$field->id];
+							break;
+						case 'contact':
+							$customerContactData['contactModel']['Email'] = $entry[$field->id];
+							break;
+						case $contact_type:
+							$contactData[$contact_type]['CustomFields'][$anthillFieldName] = $entry[$field->id];
+							break;
+					}
 					break;
 				case 'address':
 					$customerData['customer']['Address']['Address1'] = $entry[$field->id.'.1'];
@@ -163,9 +173,10 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 		} else {
 			$customerid = Anthill::CreateCustomer($customerData);
 		}
+//		GFCommon::log_debug( 'gform_after_submission: Customer: ' . print_r($customerData,1) );
 		
 	} catch (Exception $e) {
-		GFCommon::log_debug( 'gform_after_submission: Customer: ' . print_r( $e->getMessage(), 1 ) );
+		GFCommon::log_debug( 'gform_after_submission: Customer: ' . print_r( $e->getMessage(), 1 ). print_r($customerData,1) );
 		
 	}		
 
