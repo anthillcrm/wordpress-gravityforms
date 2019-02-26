@@ -172,6 +172,11 @@ function anthill_settings() {
 									<td rowspan="'.$nrows.'">'.$item->name.'</td>';
 								foreach ($fields as $f => $field) {
 									$options = property_exists($field, 'choice') && is_array($field->choice)? $field->choice : array();
+									foreach ($options as $i => $option) {
+										if (!is_string($option) && !is_numeric($option)) {
+											unset($options[$i]);
+										}
+									}
 									echo '<td>'.$field->label.'</td>
 										<td>'.$field->type.'</td>
 										<td>'.implode(', ',$options).'</td>

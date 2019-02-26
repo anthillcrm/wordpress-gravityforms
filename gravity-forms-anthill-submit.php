@@ -35,6 +35,16 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 			$contactid = (int) $_POST['input_1001'];
 		}
 	}
+	
+	// Process form data to check for Location
+	foreach ($form['fields'] as $field) {
+		$anthillField = $field->anthillField;
+		if ($anthillField) {
+			if ($anthillField == 'location') {
+				$location_id = $entry[$field->id];
+			}
+		}
+	}
 
 
 	// Data
@@ -83,90 +93,93 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 	);	
 	
 	
-	
-	
 	// Process form data
 	foreach ($form['fields'] as $field) {
 		$anthillField = $field->anthillField;
 		if ($anthillField) {
-			$anthillFieldParts = explode('_',$anthillField);
-			$type = array_shift($anthillFieldParts);
-			$fieldName = implode('_',$anthillFieldParts);
-			switch ($fieldName) {
-				case 'name':
-					$customerContactData['contactModel']['Title'] = $entry[$field->id.'.2'];
-					$customerContactData['contactModel']['FirstName'] = $entry[$field->id.'.3'];
-					$customerContactData['contactModel']['LastName'] = $entry[$field->id.'.6'];
-					break;
-				case 'telephone':
-					$customerContactData['contactModel']['Telephone'] = $entry[$field->id];
-					break;
-				case 'email':
-					switch ($type) {
-						case 'customer':
-							$customerData['customer']['CustomFields']['Email'] = $entry[$field->id];
-							break;
-						case 'contact':
-							$customerContactData['contactModel']['Email'] = $entry[$field->id];
-							break;
-						case $contact_type:
-							$contactData[$contact_type]['CustomFields'][$anthillFieldName] = $entry[$field->id];
-							break;
-					}
-					break;
-				case 'address':
-					$customerData['customer']['Address']['Address1'] = $entry[$field->id.'.1'];
-					$customerData['customer']['Address']['Address2'] = $entry[$field->id.'.2'];
-					$customerData['customer']['Address']['City'] = $entry[$field->id.'.3'];
-					$customerData['customer']['Address']['County'] = $entry[$field->id.'.4'];
-					$customerData['customer']['Address']['Postcode'] = $entry[$field->id.'.5'];
-					$customerData['customer']['Address']['Country'] = $entry[$field->id.'.6'];
-					break;
-				case 'marketing_consent':
-					break;
-				default:
-					switch ($type) {
-						case 'customer':
-							$anthillFieldData = Anthill::GetCustomerTypeField($customer_type_id, $fieldName);
-							break;
-						case 'contact':
-							$anthillFieldData = Anthill::GetCustomerContactTypeField($customer_type_id, $fieldName);
-							break;
-						case $contact_type:
-							$anthillFieldData = Anthill::GetContactTypeField($contact_type,$contact_type_item_id, $fieldName);
-							break;
-						default:
-							$anthillFieldData = false;
-					}
-					if ($anthillFieldData) {
-						$anthillFieldName = $anthillFieldData->label;
-						if ($field->inputs) {
-							$postedValue = $entry[$field->inputs[0]['id']];
-						} else {
-							$postedValue = $entry[$field->id];
-						}		
-						if ($anthillFieldData->type == 'consent' && empty($postedValue)) {
-							$postedValue = 'Opt out';
-						}
+			if ($anthillField == 'location') {
+				$location_id = $entry[$field->id];
+						
+			} else {
+				$anthillFieldParts = explode('_',$anthillField);
+				$type = array_shift($anthillFieldParts);
+				$fieldName = implode('_',$anthillFieldParts);
+				switch ($fieldName) {
+					case 'name':
+						$customerContactData['contactModel']['Title'] = $entry[$field->id.'.2'];
+						$customerContactData['contactModel']['FirstName'] = $entry[$field->id.'.3'];
+						$customerContactData['contactModel']['LastName'] = $entry[$field->id.'.6'];
+						break;
+					case 'telephone':
+						$customerContactData['contactModel']['Telephone'] = $entry[$field->id];
+						break;
+					case 'email':
 						switch ($type) {
 							case 'customer':
-								$customerData['customer']['CustomFields'][$anthillFieldName] = $postedValue;
+								$customerData['customer']['CustomFields']['Email'] = $entry[$field->id];
 								break;
 							case 'contact':
-								$customerContactData['contactModel']['CustomFields'][$anthillFieldName] = $postedValue;
+								$customerContactData['contactModel']['Email'] = $entry[$field->id];
 								break;
 							case $contact_type:
-								$contactData[$contact_type]['CustomFields'][$anthillFieldName] = $postedValue;
+								$contactData[$contact_type]['CustomFields'][$anthillFieldName] = $entry[$field->id];
 								break;
 						}
-						
-					}
+						break;
+					case 'address':
+						$customerData['customer']['Address']['Address1'] = $entry[$field->id.'.1'];
+						$customerData['customer']['Address']['Address2'] = $entry[$field->id.'.2'];
+						$customerData['customer']['Address']['City'] = $entry[$field->id.'.3'];
+						$customerData['customer']['Address']['County'] = $entry[$field->id.'.4'];
+						$customerData['customer']['Address']['Postcode'] = $entry[$field->id.'.5'];
+						$customerData['customer']['Address']['Country'] = $entry[$field->id.'.6'];
+						break;
+					case 'marketing_consent':
+						break;
+					default:
+						switch ($type) {
+							case 'customer':
+								$anthillFieldData = Anthill::GetCustomerTypeField($customer_type_id, $fieldName);
+								break;
+							case 'contact':
+								$anthillFieldData = Anthill::GetCustomerContactTypeField($customer_type_id, $fieldName);
+								break;
+							case $contact_type:
+								$anthillFieldData = Anthill::GetContactTypeField($contact_type,$contact_type_item_id, $fieldName);
+								break;
+							default:
+								$anthillFieldData = false;
+						}
+						if ($anthillFieldData) {
+							$anthillFieldName = $anthillFieldData->label;
+							if ($field->inputs) {
+								$postedValue = $entry[$field->inputs[0]['id']];
+							} else {
+								$postedValue = $entry[$field->id];
+							}		
+							if ($anthillFieldData->type == 'consent' && empty($postedValue)) {
+								$postedValue = 'Opt out';
+							}
+							switch ($type) {
+								case 'customer':
+									$customerData['customer']['CustomFields'][$anthillFieldName] = $postedValue;
+									break;
+								case 'contact':
+									$customerContactData['contactModel']['CustomFields'][$anthillFieldName] = $postedValue;
+									break;
+								case $contact_type:
+									$contactData[$contact_type]['CustomFields'][$anthillFieldName] = $postedValue;
+									break;
+							}
 
+						}
+
+				}
+				
 			}
 		}
 	}
 
-	
 	try {
 		if ($customerid) {
 			Anthill::EditCustomerDetails($customerid,$customerData);

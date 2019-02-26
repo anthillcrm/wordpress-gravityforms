@@ -50,7 +50,35 @@ function anthill_contact_fields($form_id) {
 	);
 }
 
+function anthill_contact_type_fields($form_id) {
+	$form = RGFormsModel::get_form_meta($form_id);
+	
+	$contactType = isset($form['_gf_anthill_contact_type']) ? $form['_gf_anthill_contact_type'] : false;
+	$custom = array();
+	if ($contactType) {
+		$typeField = '_gf_anthill_'.strtolower($contactType);
+		$typeID = isset($form[$typeField]) ? $form[$typeField] : false;
+		if ($typeID) {
+			$typesCall = 'Get'.$contactType.'Types';
+			$fields = Anthill::$typesCall();
+			foreach ($fields as $field) {
+				if ($field->id == $typeID) {
+					foreach ($field->Controls->detail as $field) {
+						$label = $field->label;
+						$custom[Anthill::sanitiseLabel($label)] = $label;
+					}
+				}
+			}
+		}
+	}
+
+	return array(
+		'custom' => $custom,
+	);
+}
+
 add_action('gform_field_advanced_settings', 'gform_form_field_settings_anthill', 10, 2);
+
 
 function gform_form_field_settings_anthill($position, $form_id) {
 
@@ -70,12 +98,18 @@ function gform_form_field_settings_anthill($position, $form_id) {
 			$field_groups['Contact'][$fid] = $field;
 		}
 	}
+	foreach (anthill_contact_type_fields($form_id) as $fieldgroup) {
+		foreach ($fieldgroup as $fid => $field) {
+			$field_groups['Enquiry'][$fid] = $field;
+		}
+	}	
 	?>
 	<li class="anthill_field">
 		<label class="section_label">Anthill Field</label>
 		<br />
 		<select id="anthill_field_value" onclick="SetFieldProperty('anthillField', jQuery(this).val());" >
 			<option value="">None</option>
+			<option value="location">Location</option>
 	<?php
 	foreach ($field_groups as $group => $fields) {
 		?><optgroup label="<?php print $group ?>"><?php
@@ -108,8 +142,8 @@ function gform_form_field_settings_anthill($position, $form_id) {
 }
 
 /* 	Pre-build form if Cookies are set */
-add_filter('gform_pre_render','gform_anthill_pre_render',10,3);
-function gform_anthill_pre_render($form, $ajax, $field_values) {
+add_filter('gform_pre_render','gform_anthill_pre_render_cookies',10,3);
+function gform_anthill_pre_render_cookies($form, $ajax, $field_values) {
 	$customerIdField = new GF_Field_Hidden(array(
 		'label' => 'customerId',
 		'allowsPrepopulate' => true,
@@ -126,6 +160,67 @@ function gform_anthill_pre_render($form, $ajax, $field_values) {
 	$form['fields'][] = $contactIdField;
 	return $form;
 }
+
+
+add_filter('gform_pre_render','gform_anthill_pre_render');
+add_filter( 'gform_pre_validation', 'gform_anthill_pre_render' );
+add_filter( 'gform_pre_submission_filter', 'gform_anthill_pre_render' );
+add_filter( 'gform_admin_pre_render', 'gform_anthill_pre_render' );
+function gform_anthill_pre_render($form) {
+	foreach ($form['fields'] as $field) {
+		if ( $field->type != 'select' ) {
+            continue;
+        }
+		if (isset($field->anthillField) && $anthillfieldid=$field->anthillField) {
+			if (empty($field->choices) || $field->choices[0]['text'] == 'First Choice' || empty($field->choices[0]['text'])) { // Only save values if we have the default ones, or it's empty		
+				$anthillfieldparts = explode('_',$anthillfieldid);
+				$type = array_shift($anthillfieldparts);
+				$anthillfield = implode('_',$anthillfieldparts);
+				$field->enableChoiceValue = 1;
+				switch ($type) {
+					case 'customer':
+						$fielddetails = Anthill::GetCustomerTypeField($form['_gf_anthill_customer'],$anthillfield);
+						$choices = array();
+						foreach ($fielddetails->choice as $choice) {
+							$choices[] = array( 'text' => $choice, 'value' => $choice );
+						}
+						$field->choices = $choices;
+						break;
+					case 'contact':
+						$fielddetails = Anthill::GetCustomerContactTypeField($form['_gf_anthill_customer_contact'],$anthillfield);
+						$choices = array();
+						foreach ($fielddetails->choice as $choice) {
+							$choices[] = array( 'text' => $choice, 'value' => $choice );
+						}
+						$field->choices = $choices;
+						break;
+					case 'enquiry':
+						$fielddetails = Anthill::GetContactTypeField(strtolower($type),$form['_gf_anthill_'.strtolower($type)],$anthillfield);
+						$choices = array();
+						foreach ($fielddetails->choice as $choice) {
+							$choices[] = array( 'text' => $choice, 'value' => $choice );
+						}
+						$field->choices = $choices;
+						break;		
+					case 'location':
+						if (empty($field->choices) || $field->choices[0]['text'] == 'First Choice') { // Use saved values
+							$locations = Anthill::GetLocations();
+							$choices = array();
+							foreach ($locations as $location) {
+								$choices[] = array( 'text' => $location->Label, 'value' => $location->LocationId );
+							}
+							$field->choices = $choices;
+						}
+						break;
+				}
+			}
+		}
+		
+	}
+	
+	return $form;
+}
+
 
 add_filter('gform_field_value', 'gform_anthill_field_value', 10, 3);
 function gform_anthill_field_value($value, $field, $name) {
