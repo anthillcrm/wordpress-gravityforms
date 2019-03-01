@@ -8,6 +8,14 @@
  * Author URI: http://www.anthill.co.uk/
  */
 
+register_activation_hook(__FILE__,'gf_anthill_preactivation');
+function gf_anthill_preactivation() {
+	if (!extension_loaded('soap')) {
+		@trigger_error('This plugin needs the PHP SOAP extension to operate', E_USER_ERROR);
+	}
+}
+
+
 if (!class_exists('Anthill')) {
 	require_once('anthill.class.php');
 	require_once('anthill-settings.php');

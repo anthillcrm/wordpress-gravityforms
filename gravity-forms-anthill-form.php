@@ -158,6 +158,7 @@ function gform_anthill_pre_render_cookies($form, $ajax, $field_values) {
 	$contactIdField->id = 1001;
 	$form['fields'][] = $customerIdField;
 	$form['fields'][] = $contactIdField;
+	
 	return $form;
 }
 

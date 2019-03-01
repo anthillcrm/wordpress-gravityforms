@@ -528,14 +528,19 @@ class Anthill {
 }
 
 
-/* CAPTURE UTM_SOURCE */
-add_action('init','anthill_capture_utm_source');
-function anthill_capture_utm_source() {
+/* CAPTURE SOURCES */
+function anthill_sources() {
+	return array('utm_source','utm_channel','utm_campaign','utm_term');
+}
+
+add_action('init','anthill_capture_source');
+function anthill_capture_source() {
 	global $anthill_customerid, $anthill_contactid;
 	$GET = array_change_key_case($_GET, CASE_LOWER);
-	if (array_key_exists('utm_source', $GET)) {
-		$anthill_utm_source = $GET['utm_source'];
-		setcookie('anthill_utm_source', $GET['utm_source'], 0, '/');
+	foreach (anthill_sources() as $cookie) {
+		if (array_key_exists($cookie, $GET)) {
+			setcookie('anthill_'.$cookie, $GET[$cookie], 0, '/');
+		}
 	}
 	if (array_key_exists('customerid', $GET)) {
 		$anthill_customerid = $GET['customerid'];

@@ -5,6 +5,9 @@
 add_filter( 'gform_form_settings', 'gform_form_settings_anthill', 100, 2 );
 function gform_form_settings_anthill($form_settings, $form) {
 	
+	$gf_anthill_source = esc_attr( rgar( $form, '_gf_anthill_source' ) );
+	$gf_anthill_source = $gf_anthill_source? $gf_anthill_source : 'Website';
+	
 	$gf_anthill_location = esc_attr( rgar( $form, '_gf_anthill_location' ) );
 	$gf_anthill_customer = esc_attr( rgar( $form, '_gf_anthill_customer' ) );
 	$gf_anthill_contact_type = esc_attr( rgar( $form, '_gf_anthill_contact_type' ) );
@@ -15,6 +18,10 @@ function gform_form_settings_anthill($form_settings, $form) {
 	$gf_anthill_lead = esc_attr( rgar( $form, '_gf_anthill_lead' ) );
 	$gf_anthill_sale = esc_attr( rgar( $form, '_gf_anthill_sale' ) );
 
+    $gf_anthill_tracking = array();
+	foreach (anthill_sources() as $source) {
+		$gf_anthill_tracking[$source] = esc_attr( rgar( $form, '_gf_anthill_tracking_'.$source ) );
+	}	
 
 	// The meta box content
 	$locations = Anthill::GetLocations();
@@ -152,7 +159,29 @@ function gform_form_settings_anthill($form_settings, $form) {
 		</tr>
 	';	
 
-
+	$anthill_source = '
+		<tr id="anthill_source">
+            <th>Anthill Source</th>
+			<td>
+				<input type="text" id="gf-anthill-source" name="gf-anthill-source" value="'.$gf_anthill_source.'" />
+			</td>
+		</tr>
+	';		
+	
+	$anthill_tracking = '
+		<tr>
+			<th colspan="2">Tracking configuration (optional). Enter custom field names.</td>
+		</tr>';
+	foreach (anthill_sources() as $source) {
+		$anthill_tracking .= '
+			<tr>
+				<th>'.$source.'</th>
+				<td>
+					<input type="text" id="gf-anthill-tracking-'.$source.'" name="gf-anthill-tracking-'.$source.'" value="'.$gf_anthill_tracking[$source].'" />
+				</td>
+			</tr>
+		';
+	}
 		
 	$form_settings['Anthill'] = array(
 		'anthill_location'			=> $anthill_location,
@@ -164,6 +193,8 @@ function gform_form_settings_anthill($form_settings, $form) {
 		'anthill_issue'				=> $anthill_issue,
 		'anthill_lead'				=> $anthill_lead,
 		'anthill_sale'				=> $anthill_sale,
+		'anthill_source'			=> $anthill_source,
+		'anthill_tracking'			=> $anthill_tracking,
 	);
 	return $form_settings;
 }
@@ -178,6 +209,10 @@ function gform_form_settings_anthill_save($updated_form) {
 	$updated_form['_gf_anthill_issue']				= rgpost( 'gf-anthill-issue-id' );
 	$updated_form['_gf_anthill_lead']				= rgpost( 'gf-anthill-lead-id' );
 	$updated_form['_gf_anthill_sale']				= rgpost( 'gf-anthill-sale-id' );
+	$updated_form['_gf_anthill_source']				= rgpost( 'gf-anthill-source' );
+	foreach (anthill_sources() as $source) {
+		$updated_form['_gf_anthill_tracking_'.$source] = rgpost( 'gf-anthill-tracking-'.$source );
+	}	
 	return $updated_form;
 }
 

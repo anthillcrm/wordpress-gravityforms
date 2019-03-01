@@ -9,6 +9,9 @@ add_action( 'gform_after_submission', 'gravity_forms_anthill_after_submission', 
 function gravity_forms_anthill_after_submission( $entry, $form ) {
 
 	//
+	$source = $form['_gf_anthill_source'];
+	$source	= $source? $source : 'Website';
+	
 	$location_id = $form['_gf_anthill_location'];
 	
 	$customer_type_id = $form['_gf_anthill_customer'];
@@ -24,9 +27,18 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 		$source = $_POST['source'];
 	} elseif (isset($_COOKIE['anthill_utm_source'])) {
 		$source = $_COOKIE['anthill_utm_source'];
-	} else {
-		$source = 'Website';
 	}	
+	
+	// Tracking
+	$tracking_custom_fields = array();
+	foreach (anthill_sources() as $anthill_track) {
+		$fieldname = $form['_gf_anthill_tracking_'.$anthill_track];
+		$fieldname = $fieldname? $fieldname : $anthill_track;
+		if (isset($_COOKIE['anthill_'.$anthill_track])) {
+			$tracking_custom_fields[$fieldname] = $_COOKIE['anthill_'.$anthill_track];
+		}
+	}
+	
 	
 	$customerid = $contactid = false;
 	if (isset($_POST['input_1000'])) {
@@ -179,6 +191,20 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 			}
 		}
 	}
+	
+	
+	// Add tracking fields
+	foreach ($tracking_custom_fields as $var => $val) {
+		$contactData[$contact_type]['CustomFields'][$var] = $val;
+	}
+	
+	
+	if (defined('ANTHILL_DEBUG') && ANTHILL_DEBUG) {
+		print_r($customerData);
+		print_r($customerContactData);
+		print_r($contactData);
+		die();
+	}	
 
 	try {
 		if ($customerid) {
