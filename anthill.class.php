@@ -467,8 +467,9 @@ class Anthill {
 	}
 	
 	private static function ParseXML($xml,$keyfield='Type') {
-		$json  = json_encode(simplexml_load_string($xml));
+		$json  = json_encode(simplexml_load_string($xml) );
 		$obj = json_decode($json);
+
 		// Check if empty
 		if (is_object($obj) && $obj == new stdClass()) {
 			return false;
@@ -500,7 +501,13 @@ class Anthill {
 					if (is_array($value)) {
 						foreach ($value as $i => $o) {
 							if (is_object($o)) {
-								$value[$i] = Anthill::unwrap($o);
+								$_value = Anthill::unwrap($o);
+								// Handle returned object with value & 0 properties
+								$_valuearray = (array) $_value;
+								if (count($_valuearray)==2 && count(array_unique($_valuearray))==1) {
+									$_value = reset($_valuearray);
+								}
+								$value[$i] = $_value;
 							}
 						}
 						$obj->$field = $value;
