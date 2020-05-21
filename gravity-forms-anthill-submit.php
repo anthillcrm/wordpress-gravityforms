@@ -105,6 +105,7 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 	);	
 	
 	
+	
 	// Process form data
 	foreach ($form['fields'] as $field) {
 		$anthillField = $field->anthillField;
@@ -199,6 +200,12 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 	}
 	
 	
+	foreach ($form['fields'] as $field) {
+		if ($field->type == 'fileupload') {
+			$contactData['files'][] = array('file'=>$entry[$field->id],'type'=>$field->anthillFileType);
+		}
+	}
+
 	if (defined('ANTHILL_DEBUG') && ANTHILL_DEBUG) {
 		print_r($customerData);
 		print_r($customerContactData);
