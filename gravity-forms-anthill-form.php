@@ -121,6 +121,21 @@ function gform_form_field_settings_anthill($position, $form_id) {
 				?>
 		</select>
 	</li>
+	
+	<li class="anthill_file_type">
+		<label class="section_label">Anthill File Type</label>
+		<br />
+		<select id="anthill_file_type_value" onclick="SetFieldProperty('anthillFileType', jQuery(this).val());" >
+			<option value="">None</option>
+			<?php
+			$options = Anthill::GetAttachmentTypes();
+			foreach ($options as $i => $option) {
+				echo '<option value="'.$option->id.'">'.$option->name.'</option>';
+			}
+			?>
+		</select>
+	</li>
+	
 			<?php
 		}
 
@@ -132,10 +147,16 @@ function gform_form_field_settings_anthill($position, $form_id) {
 	<script type='text/javascript'>
 		//adding setting to fields of type "text"
 		fieldSettings.select += ", .anthill_field";
+		fieldSettings.fileupload += ", .anthill_file_type";
 
 		//binding to the load field settings event to initialize the checkbox
 		jQuery(document).bind("gform_load_field_settings", function (event, field, form) {
-			jQuery("#anthill_field_value option[value=" + field["anthillField"] + "]").attr("selected", "selected");
+			if (field["anthillField"]) {
+				jQuery("#anthill_field_value option[value=" + field["anthillField"] + "]").attr("selected", "selected");
+			}
+			if (field["anthillFileType"]) {
+				jQuery("#anthill_file_type_value option[value=" + field["anthillFileType"] + "]").attr("selected", "selected");
+			}
 		});
 	</script>
 	<?php
