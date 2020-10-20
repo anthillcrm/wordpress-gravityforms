@@ -152,10 +152,10 @@ function gform_form_field_settings_anthill($position, $form_id) {
 		//binding to the load field settings event to initialize the checkbox
 		jQuery(document).bind("gform_load_field_settings", function (event, field, form) {
 			if (field["anthillField"]) {
-				jQuery("#anthill_field_value option[value=" + field["anthillField"] + "]").attr("selected", "selected");
+				jQuery("#anthill_field_value").val(field["anthillField"]);
 			}
 			if (field["anthillFileType"]) {
-				jQuery("#anthill_file_type_value option[value=" + field["anthillFileType"] + "]").attr("selected", "selected");
+				jQuery("#anthill_file_type_value").val(field["anthillFileType"]);
 			}
 		});
 	</script>
