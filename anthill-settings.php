@@ -171,7 +171,10 @@ function anthill_settings() {
 									<td rowspan="'.$nrows.'">'.$item->id.'</td>
 									<td rowspan="'.$nrows.'">'.$item->name.'</td>';
 								foreach ($fields as $f => $field) {
-									$options = property_exists($field, 'choice') && is_array($field->choice)? $field->choice : array();
+									$options = array();
+									if (property_exists($field, 'choice')) {
+										$options = is_array($field->choice)? $field->choice : array($field->choice);
+									}
 									foreach ($options as $i => $option) {
 										if (!is_string($option) && !is_numeric($option)) {
 											unset($options[$i]);
@@ -208,6 +211,3 @@ function anthill_settings() {
 
 	<?php
 }
-
-
-
