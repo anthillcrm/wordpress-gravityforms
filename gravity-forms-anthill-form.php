@@ -42,7 +42,8 @@ function anthill_contact_fields($form_id) {
 
 	return array(
 		'standard' => array(
-			'name' => 'Name',
+			'first_name' => 'First Name',
+			'last_name' => 'Last Name',
 			'telephone' => 'Telephone',
 			'email' => 'Email',
 		),
