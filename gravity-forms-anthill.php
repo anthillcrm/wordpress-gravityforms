@@ -3,8 +3,8 @@
 /**
  * Plugin Name: Gravity Forms - Anthill Integration
  * Description: An add-on for Gravity Forms that sends form submissions to Anthill.
- * Version: 1.0.2
- * Author: Cyan Commerce
+ * Version: 1.0.9
+ * Author: Anthill
  * Author URI: http://www.anthill.co.uk/
  */
 
