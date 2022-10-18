@@ -7,7 +7,7 @@
  */
 add_action( 'gform_after_submission', 'gravity_forms_anthill_after_submission', 10, 2 );
 function gravity_forms_anthill_after_submission( $entry, $form ) {
-
+    
 	//
 	$source = $form['_gf_anthill_source'];
 	$source	= $source? $source : 'Website';
@@ -57,6 +57,26 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 			}
 		}
 	}
+    
+    // Address
+    $address = array(
+        'Address1' => '',
+        'Address2' => '',
+        'City' => '',
+        'County' => '',
+        'Postcode' => '',
+        'Country' => '',
+    );
+    foreach ($form['fields'] as $field) {
+        if ($field->type == 'address' && isset($field->anthillField) && $field->anthillField=='customer_address') {
+            foreach (array_keys($address) as $i => $addresskey) {
+                $inputkey = isset($field->inputs[$i])? $field->inputs[$i]['id'] : false;
+                if ($inputkey) {
+                    $address[$addresskey] = isset($entry[$inputkey])? $entry[$inputkey] : '';
+                }
+            }
+        }
+    }
 
 
 	// Data
@@ -66,14 +86,7 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 		'customer' => array(
 			'TypeId' => $customer_type_id,
 			'MarketingConsentGiven' => false,
-			'Address' => array(
-				'Address1' => '',
-				'Address2' => '',
-				'City' => '',
-				'County' => '',
-				'Country' => '',
-				'Postcode' => '',
-			),
+			'Address' => $address,
 			'ExternalReference' => '',
 			'CustomFields' => array(),
 		),
@@ -103,7 +116,6 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 			'CustomFields' => array(),
 		),
 	);	
-	
 	
 	
 	// Process form data
@@ -139,14 +151,14 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 								break;
 						}
 						break;
-					case 'address':
+/*					case 'address':
 						$customerData['customer']['Address']['Address1'] = $entry[$field->id.'.1'];
 						$customerData['customer']['Address']['Address2'] = $entry[$field->id.'.2'];
 						$customerData['customer']['Address']['City'] = $entry[$field->id.'.3'];
 						$customerData['customer']['Address']['County'] = $entry[$field->id.'.4'];
 						$customerData['customer']['Address']['Postcode'] = $entry[$field->id.'.5'];
 						$customerData['customer']['Address']['Country'] = $entry[$field->id.'.6'];
-						break;
+						break;*/
 					case 'marketing_consent':
 						break;
 					default:
