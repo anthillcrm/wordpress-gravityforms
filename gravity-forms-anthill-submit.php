@@ -178,7 +178,18 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 						if ($anthillFieldData) {
 							$anthillFieldName = $anthillFieldData->label;
 							if ($field->inputs) {
-								$postedValue = $entry[$field->inputs[0]['id']];
+								$values = array();
+								foreach($field->inputs as $i => $input) {
+									$inputkey = isset($field->inputs[$i]) ? $field->inputs[$i]['id']: false;
+									if ($inputkey) {
+										$inputval = isset($entry[$inputkey]) ? $entry[$inputkey] : false;
+										if($inputval) {
+											$values[] = $inputval;
+										}
+									}
+								}
+								 $postedValue = implode(',', $values);
+						
 							} else {
 								$postedValue = $entry[$field->id];
 							}		
