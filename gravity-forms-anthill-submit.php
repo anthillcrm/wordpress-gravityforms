@@ -188,7 +188,7 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 										}
 									}
 								}
-								 $postedValue = implode(',', $values);
+								 $postedValue = implode(PHP_EOL, $values);
 						
 							} else {
 								$postedValue = $entry[$field->id];
