@@ -136,7 +136,17 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 						$customerContactData['contactModel']['LastName'] = $entry[$field->id.'.6'];
 						break;
 					case 'telephone':
-						$customerContactData['contactModel']['Telephone'] = $entry[$field->id];
+						switch($type) {
+							case 'customer':
+								$customerData["CustomFields"]["Telephone"] = $entry[$field->id];
+								break;
+							case 'contact':
+								$customerContactData['contactModel']['Telephone'] = $entry[$field->id];
+								break;
+							case $contact_type:
+								$contactData[$contact_type]["CustomFields"]['Telephone'] = $entry[$field->id];
+								break;
+							}
 						break;
 					case 'email':
 						switch ($type) {
@@ -147,7 +157,7 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 								$customerContactData['contactModel']['Email'] = $entry[$field->id];
 								break;
 							case $contact_type:
-								$contactData[$contact_type]['CustomFields'][$anthillFieldName] = $entry[$field->id];
+								$contactData[$contact_type]['CustomFields']['Email'] = $entry[$field->id];
 								break;
 						}
 						break;
