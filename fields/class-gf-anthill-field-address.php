@@ -1,7 +1,7 @@
 <?php
 
 if ( ! class_exists( 'GFForms' ) ) {
-	die();
+	die("Gravity Forms is not loaded.");
 }
 
 class GF_Field_Anthill_Address extends GF_Field {

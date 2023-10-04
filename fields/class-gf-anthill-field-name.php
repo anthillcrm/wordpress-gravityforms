@@ -2,7 +2,7 @@
 
 // If Gravity Forms isn't loaded, bail.
 if ( ! class_exists( 'GFForms' ) ) {
-	die();
+	die("Gravity Forms is not loaded.");
 }
 
 /**
