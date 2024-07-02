@@ -108,7 +108,7 @@ function gform_form_field_settings_anthill($position, $form_id) {
 	<li class="anthill_field">
 		<label class="section_label">Anthill Field</label>
 		<br />
-		<select id="anthill_field_value" onclick="SetFieldProperty('anthillField', jQuery(this).val());" >
+		<select id="anthill_field_value" onchange="SetFieldProperty('anthillField', jQuery(this).val());" >
 			<option value="">None</option>
 			<option value="location">Location</option>
 	<?php
@@ -126,7 +126,7 @@ function gform_form_field_settings_anthill($position, $form_id) {
 	<li class="anthill_file_type">
 		<label class="section_label">Anthill File Type</label>
 		<br />
-		<select id="anthill_file_type_value" onclick="SetFieldProperty('anthillFileType', jQuery(this).val());" >
+		<select id="anthill_file_type_value" onchange="SetFieldProperty('anthillFileType', jQuery(this).val());" >
 			<option value="">None</option>
 			<?php
 			$options = Anthill::GetAttachmentTypes();
