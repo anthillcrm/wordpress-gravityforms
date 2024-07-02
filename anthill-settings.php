@@ -162,11 +162,22 @@ function anthill_settings() {
 						<?php
 						foreach ($items as $item) {
 							if (is_object($item) && property_exists($item,'id')) {
+								
 								$fields = property_exists($item, 'Controls')? $item->Controls->detail : array();
+								
 								if (is_object($fields)) {
 									$fields = array($fields);
 								}
-								$nrows = max(1,count($fields));
+								
+                                /**
+                                 * Fields can be null which throws an error, stopping
+                                 * the page from loading.
+                                 */
+                                $nrows = 0;
+                                if (is_countable($fields)) {
+                                    $nrows = max(1,count($fields));
+                                }
+
 								echo '<tr class="field">
 									<td rowspan="'.$nrows.'">'.$item->id.'</td>
 									<td rowspan="'.$nrows.'">'.$item->name.'</td>';
