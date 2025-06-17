@@ -399,8 +399,7 @@ class Anthill {
 		$client = Anthill::GetClient();
 		$header = Anthill::CreateAuthHeader();
 
-		$handle = fopen($pathToFile, "r");
-		$contents = fread($handle, filesize($pathToFile));
+		$contents = file_get_contents($pathToFile);
 		$base64Contents = base64_encode($contents);
 		
 		$result = $client->__soapCall('Add'.$contactType.'Attachment', array('parameters' =>array(
