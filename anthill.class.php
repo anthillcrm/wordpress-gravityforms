@@ -536,7 +536,7 @@ class Anthill {
 
 /* CAPTURE SOURCES */
 function anthill_sources() {
-	return array('utm_source','utm_channel','utm_campaign','utm_term');
+	return array('utm_source','utm_channel','utm_campaign','utm_term', 'gclid');
 }
 
 add_action('init','anthill_capture_source');
