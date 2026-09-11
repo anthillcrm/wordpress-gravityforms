@@ -233,8 +233,28 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 	
 	
 	foreach ($form['fields'] as $field) {
-		if ($field->type == 'fileupload') {
-			$contactData['files'][] = array('file'=>$entry[$field->id],'type'=>isset($field->anthillFileType) ? $field->anthillFileType : '');
+		if ($field->type != 'fileupload') {
+			continue;
+		}
+
+		$value = rgar($entry, (string) $field->id);
+		if (!$value) {
+			continue; // Nothing uploaded; previously queued an empty attachment.
+		}
+
+		// A multi-file field stores a JSON array of URLs, a single-file field one
+		// URL. The whole JSON string used to be handed over as a single filename.
+		$urls = json_decode($value, true);
+		if (!is_array($urls)) {
+			$urls = array($value);
+		}
+
+		$fileType = isset($field->anthillFileType) ? $field->anthillFileType : '';
+
+		foreach ($urls as $url) {
+			if (is_string($url) && $url) {
+				$contactData['files'][] = array('file' => $url, 'type' => $fileType);
+			}
 		}
 	}
 

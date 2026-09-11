@@ -255,7 +255,7 @@ add-on's `feed_settings_fields()`.
 | **1 — Guardrails** ✅ *done, branch `phase-2-form-settings-framework`* | Bump header to 2.0.0; add `Requires at least`, `Requires PHP: 8.1`; runtime `version_compare( GFForms::$version, '3.1.1.2', '<' )` guard with an admin notice instead of a fatal; add `GF_ANTHILL_VERSION` constant and a text domain. | Safe to install |
 | **2 — Settings migration** ✅ *done, branch `phase-2-form-settings-framework`* | §1.1 + §1.2. Rewrite form settings onto `gform_form_settings_fields`, delete `js/gf-anthill.js`, add the meta-key read shim + one-time migration. | Form settings render on 3.1.1.2 |
 | **3 — Editor + fields** ✅ *done* | §2.1–2.4. Update field-settings markup, widen `fieldSettings` beyond `select`, delete the dead address class, fix the hidden-field registration. | Field mapping works |
-| **4 — Runtime hardening** (1–1.5d) | §3, §4, §5. PHP 8 guards, escaping, nonce, SOAP timeouts, transient caching, file-upload paths. | Clean debug log |
+| **4 — Runtime hardening** ✅ *done* | §3, §4, §5. PHP 8 guards, escaping, nonce, SOAP timeouts, transient caching, file-upload paths. | Clean debug log |
 | **5 — Regression** (0.5d) | Test matrix below. | Sign-off |
 
 ---
@@ -479,3 +479,61 @@ Outstanding:
 - [ ] `get_form_editor_button()` returning `array()` suppresses the button rather than rendering an
       empty one. If it does not, the fallback is `gform_add_field_buttons` to filter the entry out.
 - [ ] `SetFieldProperty()` and the `gform_load_field_settings` event are unchanged.
+---
+
+## 14. Phase 4 — as built
+
+Four commits: `4a` PHP 8 correctness, `4b` security, `4c` SOAP and caching, `4d` attachments.
+
+### The one that was a live crash, not a warning
+
+`property_exists()` on PHP 8 raises a **TypeError** when handed anything that is not an object or a
+string. `Anthill::Get*Type()` returns `false` for an unknown id, so a stale or deleted type id in a
+form's settings took down `GetCustomerTypeField()`, `GetCustomerContactTypeField()` and
+`GetContactTypeField()` outright. Graded as a warning in §3; it is a fatal.
+
+### Latent bugs found while guarding
+
+- A field with exactly **one** choice comes back from Anthill as a bare string, not a one-element
+  array, so `foreach` over it yielded nothing and the field silently lost its options. Likewise a
+  record with exactly one custom field, which arrives as an object. Both now normalised.
+- Choice population **blanked a field's authored choices** whenever the Anthill lookup returned
+  nothing — i.e. every time the endpoint was unreachable. It now leaves them alone.
+- A **multi-file upload** field stores a JSON array of URLs; the whole JSON string was being passed
+  as a single filename, so those attachments never arrived.
+- Empty file fields queued an empty attachment.
+
+### Security
+
+- **Reflected XSS closed.** `?utm_source=<script>…` went into a cookie raw and the
+  `anthill_utm_source` shortcode wrote it straight into the page. Sanitised in, escaped out;
+  verified with a script-tag payload that no tag survives to output.
+- **CSRF closed.** The settings screen processed `$_POST` with no nonce and no capability re-check.
+- **Credentials stopped being mangled.** `esc_attr()` was used as an input sanitiser *and* again on
+  read, so a key containing `&`, `<` or `"` was stored HTML-encoded and then encoded a second time
+  before being sent to Anthill. **An existing key containing those characters is already stored
+  mangled and must be re-entered.**
+- API key field is now `type=password`; tracking cookies get `SameSite=Lax`, `Secure` on HTTPS and
+  `HttpOnly`, and are mirrored into `$_COOKIE` so the value is usable on the request that set it.
+
+### Performance and resilience
+
+- `SoapClient` had **no options at all**, so a slow endpoint held the request until
+  `max_execution_time` — a white admin screen, or on a submission, a lost lead. Now 10s connect / 20s
+  stream, filterable.
+- The eight lookups are cached in transients keyed on installation + username. Failures are
+  deliberately **not** cached, so an outage does not blank the config UI for the whole lifetime.
+  Cleared on credential save and by a *Refresh from Anthill* button.
+- Uploads resolve to a **local path** instead of the site fetching its own URL over HTTP. Query
+  strings are stripped before mapping; oversize files are refused; remote-storage URLs fall back to
+  `wp_remote_get()` *with* a timeout, which `file_get_contents()` never had.
+- jQuery UI's theme no longer comes from the Google CDN.
+
+### Deliberately not done
+
+Signing the hidden customer id — see the correction in §2.4. Unchanged from Phase 3.
+
+### New filters
+
+`anthill_wsdl_path`, `anthill_soap_options`, `anthill_cache_lifetime`,
+`anthill_max_attachment_bytes`, `gf_anthill_mappable_field_types`.

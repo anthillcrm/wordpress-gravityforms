@@ -489,8 +489,12 @@ class Anthill {
 
 		if (!empty($data['files'])) {
 			foreach ($data['files'] as $file) {
-				$filename = pathinfo($file['file'],PATHINFO_BASENAME);
-				Anthill::AttachFileToContact($contactType, $resultID, $file['file'], $filename, $file['type']); 
+				// basename() of the URL path, not of the whole URL: a query string
+				// would otherwise end up in the filename sent to Anthill.
+				$path     = parse_url($file['file'], PHP_URL_PATH);
+				$filename = $path ? basename($path) : basename($file['file']);
+
+				Anthill::AttachFileToContact($contactType, $resultID, $file['file'], $filename, $file['type']);
 			}
 		}
 		
@@ -499,11 +503,95 @@ class Anthill {
 
 
 	
+	/**
+	 * Reads an uploaded file, preferring the local filesystem.
+	 *
+	 * Gravity Forms stores a file field's URL in the entry, and this used to be
+	 * handed straight to file_get_contents(). That makes the site issue an HTTP
+	 * request back to itself for every attachment: a wasted round trip at best,
+	 * and a failure whenever uploads are protected, behind basic auth, or the
+	 * site is not reachable from itself.
+	 *
+	 * @param string $url Upload URL, or a path.
+	 *
+	 * @return string|false File contents, or false if unusable.
+	 */
+	private static function ReadUpload($url) {
+		$max  = (int) apply_filters( 'anthill_max_attachment_bytes', 10 * MB_IN_BYTES );
+		$path = '';
+
+		// Any query string or fragment belongs to the URL, not to the filename.
+		$clean = preg_replace( '/[?#].*$/', '', $url );
+
+		if ( class_exists( 'GFFormsModel' ) && method_exists( 'GFFormsModel', 'get_physical_file_path' ) ) {
+			$path = (string) GFFormsModel::get_physical_file_path( $clean );
+		}
+
+		if ( ! $path || ! is_readable( $path ) ) {
+			// Map the uploads URL onto the uploads directory ourselves.
+			$uploads = wp_upload_dir();
+			if ( empty( $uploads['error'] ) && 0 === strpos( $clean, $uploads['baseurl'] ) ) {
+				$path = $uploads['basedir'] . substr( $clean, strlen( $uploads['baseurl'] ) );
+			} elseif ( is_readable( $clean ) ) {
+				$path = $clean; // Already a path.
+			}
+		}
+
+		if ( $path && is_readable( $path ) ) {
+			if ( $max > 0 && filesize( $path ) > $max ) {
+				Anthill::LogAttachment( 'too large to attach (' . size_format( filesize( $path ) ) . '): ' . $url );
+
+				return false;
+			}
+
+			return file_get_contents( $path );
+		}
+
+		// Last resort, for uploads offloaded to remote storage. Uses the HTTP API
+		// so the request is subject to a timeout, which file_get_contents was not.
+		if ( ! preg_match( '#^https?://#i', $url ) ) {
+			Anthill::LogAttachment( 'unreadable upload: ' . $url );
+
+			return false;
+		}
+
+		$response = wp_remote_get( $url, array( 'timeout' => 20 ) );
+		if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+			Anthill::LogAttachment( 'could not fetch upload: ' . $url );
+
+			return false;
+		}
+
+		$body = wp_remote_retrieve_body( $response );
+		if ( $max > 0 && strlen( $body ) > $max ) {
+			Anthill::LogAttachment( 'too large to attach: ' . $url );
+
+			return false;
+		}
+
+		return $body;
+	}
+
+	/**
+	 * @param string $message Message to log.
+	 *
+	 * @return void
+	 */
+	private static function LogAttachment($message) {
+		if ( class_exists( 'GFCommon' ) ) {
+			GFCommon::log_debug( 'Anthill attachment: ' . $message );
+		}
+	}
+
 	public static function AttachFileToContact($contactType, $contactID, $pathToFile, $filename, $attachmentType){
 		$client = Anthill::GetClient();
 		$header = Anthill::CreateAuthHeader();
 
-		$contents = file_get_contents($pathToFile);
+		$contents = Anthill::ReadUpload($pathToFile);
+		if (false === $contents) {
+			return false;
+		}
+
 		$base64Contents = base64_encode($contents);
 		
 		$result = $client->__soapCall('Add'.$contactType.'Attachment', array('parameters' =>array(
