@@ -247,7 +247,7 @@ add-on's `feed_settings_fields()`.
 | Phase | Work | Output |
 |---|---|---|
 | **0 — Verify** (0.5d) | Stand up WP + GF 3.1.1.2 + this plugin. Enable `WP_DEBUG`, GF logging. Record exactly what fatals/renders blank. Confirm which of §1/§2 are removals vs. deprecations. | Confirmed defect list |
-| **1 — Guardrails** (0.5d) | Bump header to 2.0.0; add `Requires at least`, `Requires PHP: 8.1`; runtime `version_compare( GFForms::$version, '3.1.1.2', '<' )` guard with an admin notice instead of a fatal; add `GF_ANTHILL_VERSION` constant and a text domain. | Safe to install |
+| **1 — Guardrails** ✅ *done, branch `phase-2-form-settings-framework`* | Bump header to 2.0.0; add `Requires at least`, `Requires PHP: 8.1`; runtime `version_compare( GFForms::$version, '3.1.1.2', '<' )` guard with an admin notice instead of a fatal; add `GF_ANTHILL_VERSION` constant and a text domain. | Safe to install |
 | **2 — Settings migration** ✅ *done, branch `phase-2-form-settings-framework`* | §1.1 + §1.2. Rewrite form settings onto `gform_form_settings_fields`, delete `js/gf-anthill.js`, add the meta-key read shim + one-time migration. | Form settings render on 3.1.1.2 |
 | **3 — Editor + fields** (1d) | §2.1–2.4. Update field-settings markup, widen `fieldSettings` beyond `select`, delete the dead address class, fix the hidden-field registration and the tampering hole. | Field mapping works |
 | **4 — Runtime hardening** (1–1.5d) | §3, §4, §5. PHP 8 guards, escaping, nonce, SOAP timeouts, transient caching, file-upload paths. | Clean debug log |
@@ -311,3 +311,47 @@ Branch: `phase-2-form-settings-framework`.
 
 Version bump and the minimum-GF-version guard are Phase 1; the legacy `gform_form_settings` path has
 been removed outright, so this branch requires GF 2.5+ and should not ship before that guard lands.
+
+---
+
+## 11. Phase 1 — as built
+
+Pulled forward and committed on the same branch, because Phase 2 removed the legacy
+`gform_form_settings` path outright and the plugin therefore must not load against an older
+Gravity Forms.
+
+- Version **2.0.0**, `GF_ANTHILL_VERSION` / `GF_ANTHILL_MIN_GF_VERSION` / `GF_ANTHILL_MIN_PHP_VERSION`
+  / `GF_ANTHILL_FILE` / `GF_ANTHILL_PATH` constants, `defined( 'ABSPATH' ) || exit`, and
+  `Text Domain: gravity-forms-anthill` loaded on `init`. The settings stylesheet is versioned from
+  `GF_ANTHILL_VERSION` rather than a hardcoded `1.0.0`, so it cache-busts on release.
+- Requirements are split in two, which is the substantive design decision here:
+  - **`gf_anthill_environment_failures()`** — PHP version and the SOAP extension. Checked at
+    activation; failing *blocks* activation, because neither can be fixed by the site owner from
+    inside WordPress.
+  - **`gf_anthill_requirement_failures()`** — the above plus Gravity Forms presence and version.
+    Checked at load; failing means `init_anthill()` registers **nothing** and an `admin_notices`
+    error explains why. Gravity Forms is deliberately *not* an activation blocker: installing this
+    add-on before Gravity Forms is a reasonable order to work in, and a notice is recoverable where a
+    refused activation is just confusing.
+- An **unreadable** Gravity Forms version is treated as acceptable rather than blocking. If a future
+  release moves `GFForms::$version`, the failure mode is "runs anyway" rather than "every site running
+  this add-on goes dark".
+- `init_anthill()` keeps its name so any existing `remove_action( 'gform_loaded', 'init_anthill' )`
+  still works, and its `require_once` calls now use `GF_ANTHILL_PATH` instead of relying on the
+  include-path fallback.
+- Activation failure now calls `deactivate_plugins()` + `wp_die()` with a readable list. The previous
+  `echo` + `trigger_error( …, E_USER_ERROR )` produced an "unexpected output" warning followed by a
+  bare fatal.
+
+### Requirement values to reconcile in Phase 0
+
+`Requires PHP: 8.1` and `Requires at least: 6.5` are floors chosen for this plugin, **not** read off
+Gravity Forms 3.1.1.2's own requirements, which could not be fetched here. Both are enforced by
+WordPress at activation, so confirm them against the real release before shipping — setting either
+too high locks out legitimate sites.
+
+### Known, deliberately out of scope
+
+`init_anthill`, `anthill_settings`, `anthill_sources` and friends are unprefixed global function
+names with real collision potential. Renaming them is a breaking change for anything hooking them,
+so it belongs with the Phase 7 add-on rewrite rather than a guardrails pass.
