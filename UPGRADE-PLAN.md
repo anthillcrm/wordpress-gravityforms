@@ -343,6 +343,23 @@ Gravity Forms.
   `echo` + `trigger_error( …, E_USER_ERROR )` produced an "unexpected output" warning followed by a
   bare fatal.
 
+### Verified so far
+
+Against PHP 8.5 with SOAP, and stubs for WordPress and the small Gravity Forms surface touched at
+load time:
+
+- Requirements met → `init_anthill()` loads all six files, registers all 13 Gravity Forms hooks, and
+  registers `GF_Field_Anthill_Name`. The legacy `gform_form_settings`, `gform_pre_form_settings_save`
+  and `gform_noconflict_scripts` hooks are confirmed **absent**, and `gform_form_settings_fields`
+  present.
+- Requirements unmet → `init_anthill()` loads nothing, across six scenarios: Gravity Forms current,
+  newer, absent, version-unreadable, one major behind (2.9.14) and one **patch** behind (3.1.1.1).
+  The patch case matters: Gravity Forms uses four-segment versions, which a naive string comparison
+  gets wrong.
+
+Still unverified without a live Gravity Forms build: everything in the Phase 2 list above, plus the
+`gform_field_advanced_settings` markup contract, which Phase 3 addresses.
+
 ### Requirement values to reconcile in Phase 0
 
 `Requires PHP: 8.1` and `Requires at least: 6.5` are floors chosen for this plugin, **not** read off
