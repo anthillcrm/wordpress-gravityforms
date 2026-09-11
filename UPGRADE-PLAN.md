@@ -467,11 +467,15 @@ the outage fix.
 
 ### Still to verify against a live build
 
-- [x] `gform_field_advanced_settings` still exists and is not deprecated — confirmed against current
-      Gravity Forms documentation.
-- [ ] It still fires at `$position === -1` specifically (the docs' own examples use numeric positions
-      such as 25 or 50, so this is the part worth a second look).
-- [ ] The `<li class="... field_setting">` + `section_label` markup is still what the sidebar expects.
+Confirmed against current Gravity Forms documentation:
+
+- [x] `gform_field_advanced_settings` still exists and is not deprecated.
+- [x] It still fires at `$position === -1`, which the plugin has always gated on.
+- [x] `field_setting` is still in the `<li>` class list in the documented example — so the class this
+      phase added is the supported convention, and its absence really was why these controls were
+      never hidden for field types that do not support them.
+
+Outstanding:
 - [ ] `get_form_editor_button()` returning `array()` suppresses the button rather than rendering an
-      empty one.
+      empty one. If it does not, the fallback is `gform_add_field_buttons` to filter the entry out.
 - [ ] `SetFieldProperty()` and the `gform_load_field_settings` event are unchanged.
