@@ -406,12 +406,23 @@ enforced by WordPress at activation, 2.0.0 uses no syntax newer than PHP 7.0, an
 applies its own stricter requirements on top — so a floor above what the code needs can only lock
 people out.
 
-### Open question for Phase 3
+### Scope of the 3.0 breakage — resolved
 
-If 3.0 removed `gform_form_settings`, it may also have removed or reworked
-**`gform_field_advanced_settings`** (`gravity-forms-anthill-form.php:81`), which draws the entire
-Anthill *field mapping* UI. If so, 3.0 and 3.1.1.2 clients cannot map fields either, and Phase 3 is
-not cleanup but a second outage to fix. Worth checking in the same changelog.
+`gform_field_advanced_settings` was checked against current Gravity Forms documentation: **still
+available, not deprecated**. So 3.0 did not take the field-mapping UI with it, and the damage on a
+3.0 site is confined to the **form settings panel**:
+
+| On a 3.0 site, running 1.0.17 | State |
+|---|---|
+| Form settings → Anthill tab | **gone** (`gform_form_settings` removed) |
+| Field mapping UI | works |
+| Submissions pushed to Anthill | works, using whatever settings were last saved |
+
+That is a narrower failure than assumed, but not a benign one. The mapping UI still writes field
+mappings while the form-level settings behind them — customer type, contact type, location — can no
+longer be seen or changed. New forms cannot be configured at all, and existing ones are frozen on
+their last-saved configuration. Phase 3 is therefore cleanup, as originally scoped; Phase 2 remains
+the outage fix.
 ---
 
 ## 13. Phase 3 — as built
@@ -456,8 +467,11 @@ not cleanup but a second outage to fix. Worth checking in the same changelog.
 
 ### Still to verify against a live build
 
-- [ ] `gform_field_advanced_settings` still fires at `$position === -1` in 3.1.1.2, and the
-      `<li class="... field_setting">` + `section_label` markup is still what the sidebar expects.
+- [x] `gform_field_advanced_settings` still exists and is not deprecated — confirmed against current
+      Gravity Forms documentation.
+- [ ] It still fires at `$position === -1` specifically (the docs' own examples use numeric positions
+      such as 25 or 50, so this is the part worth a second look).
+- [ ] The `<li class="... field_setting">` + `section_label` markup is still what the sidebar expects.
 - [ ] `get_form_editor_button()` returning `array()` suppresses the button rather than rendering an
       empty one.
 - [ ] `SetFieldProperty()` and the `gform_load_field_settings` event are unchanged.
