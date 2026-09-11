@@ -72,7 +72,7 @@ class Anthill {
 	}
 	public static function GetCustomerTypeField($id,$field) {			
 		$type = Anthill::GetCustomerType($id);
-		$fields = property_exists($type, 'Controls')? $type->Controls->detail : array();
+		$fields = is_object($type) && property_exists($type, 'Controls')? $type->Controls->detail : array();
 		if ($fields) {
 			return Anthill::GetFieldByName($fields, $field);
 		}
@@ -96,7 +96,7 @@ class Anthill {
 	}
 	public static function GetCustomerContactTypeField($id,$field) {			
 		$type = Anthill::GetCustomerContactType($id);
-		$fields = property_exists($type, 'Controls')? $type->Controls->detail : array();
+		$fields = is_object($type) && property_exists($type, 'Controls')? $type->Controls->detail : array();
 		if ($fields) {
 			return Anthill::GetFieldByName($fields, $field);
 		}
@@ -137,7 +137,7 @@ class Anthill {
 	}
 	public static function GetContactTypeField($type,$id,$field) {			
 		$type = Anthill::GetContactType($type,$id);
-		$fields = property_exists($type, 'Controls')? $type->Controls->detail : array();
+		$fields = is_object($type) && property_exists($type, 'Controls')? $type->Controls->detail : array();
 		if ($fields) {
 			return Anthill::GetFieldByName($fields, $field);
 		}
@@ -470,7 +470,7 @@ class Anthill {
 		$obj = json_decode($json);
 
 		// Check if empty
-		if (is_object($obj) && $obj == new stdClass()) {
+		if (is_object($obj) && ! (array) $obj) {
 			return false;
 		}
 		if ($keyfield && property_exists($obj,$keyfield)) {

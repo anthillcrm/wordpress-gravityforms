@@ -62,8 +62,8 @@ function anthill_contact_type_fields($form_id) {
 			$typesCall = 'Get'.$contactType.'Types';
 			$fields = Anthill::$typesCall();
 			foreach ($fields as $field) {
-				if ($field->id == $typeID) {
-					foreach ($field->Controls->detail as $field) {
+				if ($field->id == $typeID && isset($field->Controls->detail)) {
+					foreach ((array) $field->Controls->detail as $field) {
 						$label = $field->label;
 						$custom[Anthill::sanitiseLabel($label)] = $label;
 					}
@@ -290,6 +290,51 @@ add_filter('gform_pre_render','gform_anthill_pre_render');
 add_filter( 'gform_pre_validation', 'gform_anthill_pre_render' );
 add_filter( 'gform_pre_submission_filter', 'gform_anthill_pre_render' );
 add_filter( 'gform_admin_pre_render', 'gform_anthill_pre_render' );
+/**
+ * Turns an Anthill field definition into Gravity Forms choices.
+ *
+ * Tolerates a failed lookup (false) and a single choice, which Anthill
+ * returns as a bare string rather than a one-element array.
+ *
+ * @param object|false $fielddetails Anthill field definition.
+ *
+ * @return array
+ */
+function gform_anthill_field_choices($fielddetails) {
+	$choices = array();
+
+	if (!is_object($fielddetails) || !isset($fielddetails->choice)) {
+		return $choices;
+	}
+
+	foreach ((array) $fielddetails->choice as $choice) {
+		if (is_string($choice) || is_numeric($choice)) {
+			$choices[] = array( 'text' => $choice, 'value' => $choice );
+		}
+	}
+
+	return $choices;
+}
+
+/**
+ * The CustomField list from an Anthill customer or contact record.
+ *
+ * Anthill returns a lone custom field as an object rather than an array.
+ *
+ * @param object|false $details Anthill record.
+ *
+ * @return array
+ */
+function gform_anthill_custom_fields($details) {
+	if (!is_object($details) || !isset($details->CustomFields->CustomField)) {
+		return array();
+	}
+
+	$fields = $details->CustomFields->CustomField;
+
+	return is_array($fields) ? $fields : array($fields);
+}
+
 function gform_anthill_pre_render($form) {
 	foreach ($form['fields'] as $field) {
 		if ( $field->type != 'select' ) {
@@ -304,36 +349,36 @@ function gform_anthill_pre_render($form) {
 				switch ($type) {
 					case 'customer':
 						$fielddetails = Anthill::GetCustomerTypeField(gf_anthill_form_setting($form, 'customer'),$anthillfield);
-						$choices = array();
-						foreach ($fielddetails->choice as $choice) {
-							$choices[] = array( 'text' => $choice, 'value' => $choice );
+						$choices = gform_anthill_field_choices($fielddetails);
+						if ($choices) { // Leave the authored choices alone if Anthill gave us nothing
+							$field->choices = $choices;
 						}
-						$field->choices = $choices;
 						break;
 					case 'contact':
 						$fielddetails = Anthill::GetCustomerContactTypeField(gf_anthill_form_setting($form, 'customer_contact'),$anthillfield);
-						$choices = array();
-						foreach ($fielddetails->choice as $choice) {
-							$choices[] = array( 'text' => $choice, 'value' => $choice );
+						$choices = gform_anthill_field_choices($fielddetails);
+						if ($choices) { // Leave the authored choices alone if Anthill gave us nothing
+							$field->choices = $choices;
 						}
-						$field->choices = $choices;
 						break;
 					case 'enquiry':
 						$fielddetails = Anthill::GetContactTypeField(strtolower($type),gf_anthill_form_setting($form, strtolower($type)),$anthillfield);
-						$choices = array();
-						foreach ($fielddetails->choice as $choice) {
-							$choices[] = array( 'text' => $choice, 'value' => $choice );
+						$choices = gform_anthill_field_choices($fielddetails);
+						if ($choices) { // Leave the authored choices alone if Anthill gave us nothing
+							$field->choices = $choices;
 						}
-						$field->choices = $choices;
 						break;		
 					case 'location':
 						if (empty($field->choices) || $field->choices[0]['text'] == 'First Choice') { // Use saved values
-							$locations = Anthill::GetLocations();
 							$choices = array();
-							foreach ($locations as $location) {
-								$choices[] = array( 'text' => $location->Label, 'value' => $location->LocationId );
+							foreach (Anthill::GetLocations() as $location) {
+								if (is_object($location) && isset($location->LocationId)) {
+									$choices[] = array( 'text' => $location->Label, 'value' => $location->LocationId );
+								}
 							}
-							$field->choices = $choices;
+							if ($choices) {
+								$field->choices = $choices;
+							}
 						}
 						break;
 				}
@@ -349,8 +394,8 @@ function gform_anthill_pre_render($form) {
 add_filter('gform_field_value', 'gform_anthill_field_value', 10, 3);
 function gform_anthill_field_value($value, $field, $name) {
 	global $anthillCustomerDetails, $anthillContactDetails, $anthill_customerid, $anthill_contactid;
-	$anthillField = $field->anthillField;
-	if ($anthillField && $field->allowsPrepopulate) {
+	$anthillField = isset($field->anthillField) ? $field->anthillField : '';
+	if ($anthillField && !empty($field->allowsPrepopulate)) {
 		$anthillFieldParts = explode('_', $anthillField);
 		$type = array_shift($anthillFieldParts);
 		$fieldName = implode('_', $anthillFieldParts);
@@ -370,11 +415,13 @@ function gform_anthill_field_value($value, $field, $name) {
 						switch ($fieldName) {
 							case 'address':
 								if ($name) {
-									$value = $anthillCustomerDetails->Address->$name;
+									if (isset($anthillCustomerDetails->Address->$name)) {
+										$value = $anthillCustomerDetails->Address->$name;
+									}
 								}
 								break;
 							default:
-								foreach ($anthillCustomerDetails->CustomFields->CustomField as $detail) {
+								foreach (gform_anthill_custom_fields($anthillCustomerDetails) as $detail) {
 									if (Anthill::sanitiseLabel($detail->Key) == $fieldName || Anthill::sanitiseLabel(str_replace(' ', '', $detail->Key)) == $fieldName) {
 										$value = $detail->Value;
 										if (is_a($field, 'GF_Field_Checkbox') && $value) {
@@ -402,18 +449,18 @@ function gform_anthill_field_value($value, $field, $name) {
 					if ($anthillContactDetails) {
 						switch ($fieldName) {
 							case 'name':
-								if ($name) {
+								if ($name && isset($anthillContactDetails->$name)) {
 									$value = $anthillContactDetails->$name;
-								}							
+								}
 								break;
 							case 'telephone':
-								$value = $anthillContactDetails->Telephone;
+								$value = isset($anthillContactDetails->Telephone) ? $anthillContactDetails->Telephone : $value;
 								break;
 							case 'email':
-								$value = $anthillContactDetails->Email;
+								$value = isset($anthillContactDetails->Email) ? $anthillContactDetails->Email : $value;
 								break;
 							default:
-								foreach ($anthillContactDetails->CustomFields->CustomField as $detail) {
+								foreach (gform_anthill_custom_fields($anthillContactDetails) as $detail) {
 									if (Anthill::sanitiseLabel($detail->Key) == $fieldName || Anthill::sanitiseLabel(str_replace(' ', '', $detail->Key)) == $fieldName) {
 										$value = $detail->Value;
 										if (is_a($field, 'GF_Field_Checkbox') && $value) {
