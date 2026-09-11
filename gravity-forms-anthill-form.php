@@ -4,7 +4,7 @@ function anthill_customer_fields($form_id) {
 	$form = RGFormsModel::get_form_meta($form_id);
 
 	$custom = array();
-	$customerID = isset($form['_gf_anthill_customer']) ? $form['_gf_anthill_customer'] : false;
+	$customerID = gf_anthill_form_setting($form, 'customer');
 	if ($customerID) {
 		$fields = Anthill::GetCustomerType($customerID);
 		if ($fields && property_exists($fields, 'Controls')) {
@@ -29,7 +29,7 @@ function anthill_contact_fields($form_id) {
 	$form = RGFormsModel::get_form_meta($form_id);
 
 	$custom = array();
-	$contactID = isset($form['_gf_anthill_customer_contact']) ? $form['_gf_anthill_customer_contact'] : false;
+	$contactID = gf_anthill_form_setting($form, 'customer_contact');
 	if ($contactID) {
 		$fields = Anthill::GetCustomerContactType($contactID);
 		if ($fields && property_exists($fields, 'Controls')) {
@@ -54,11 +54,10 @@ function anthill_contact_fields($form_id) {
 function anthill_contact_type_fields($form_id) {
 	$form = RGFormsModel::get_form_meta($form_id);
 	
-	$contactType = isset($form['_gf_anthill_contact_type']) ? $form['_gf_anthill_contact_type'] : false;
+	$contactType = gf_anthill_form_setting($form, 'contact_type');
 	$custom = array();
 	if ($contactType) {
-		$typeField = '_gf_anthill_'.strtolower($contactType);
-		$typeID = isset($form[$typeField]) ? $form[$typeField] : false;
+		$typeID = gf_anthill_form_setting($form, strtolower($contactType));
 		if ($typeID) {
 			$typesCall = 'Get'.$contactType.'Types';
 			$fields = Anthill::$typesCall();
@@ -202,7 +201,7 @@ function gform_anthill_pre_render($form) {
 				$field->enableChoiceValue = 1;
 				switch ($type) {
 					case 'customer':
-						$fielddetails = Anthill::GetCustomerTypeField($form['_gf_anthill_customer'],$anthillfield);
+						$fielddetails = Anthill::GetCustomerTypeField(gf_anthill_form_setting($form, 'customer'),$anthillfield);
 						$choices = array();
 						foreach ($fielddetails->choice as $choice) {
 							$choices[] = array( 'text' => $choice, 'value' => $choice );
@@ -210,7 +209,7 @@ function gform_anthill_pre_render($form) {
 						$field->choices = $choices;
 						break;
 					case 'contact':
-						$fielddetails = Anthill::GetCustomerContactTypeField($form['_gf_anthill_customer_contact'],$anthillfield);
+						$fielddetails = Anthill::GetCustomerContactTypeField(gf_anthill_form_setting($form, 'customer_contact'),$anthillfield);
 						$choices = array();
 						foreach ($fielddetails->choice as $choice) {
 							$choices[] = array( 'text' => $choice, 'value' => $choice );
@@ -218,7 +217,7 @@ function gform_anthill_pre_render($form) {
 						$field->choices = $choices;
 						break;
 					case 'enquiry':
-						$fielddetails = Anthill::GetContactTypeField(strtolower($type),$form['_gf_anthill_'.strtolower($type)],$anthillfield);
+						$fielddetails = Anthill::GetContactTypeField(strtolower($type),gf_anthill_form_setting($form, strtolower($type)),$anthillfield);
 						$choices = array();
 						foreach ($fielddetails->choice as $choice) {
 							$choices[] = array( 'text' => $choice, 'value' => $choice );

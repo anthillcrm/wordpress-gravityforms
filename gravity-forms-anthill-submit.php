@@ -9,18 +9,18 @@ add_action( 'gform_after_submission', 'gravity_forms_anthill_after_submission', 
 function gravity_forms_anthill_after_submission( $entry, $form ) {
     
 	//
-	$source = $form['_gf_anthill_source'];
+	$source = gf_anthill_form_setting($form, 'source', 'Website');
 	$source	= $source? $source : 'Website';
 	
-	$location_id = $form['_gf_anthill_location'];
+	$location_id = gf_anthill_form_setting($form, 'location');
 	
-	$customer_type_id = $form['_gf_anthill_customer'];
+	$customer_type_id = gf_anthill_form_setting($form, 'customer');
 	
-	$contact_type = strtolower($form['_gf_anthill_contact_type']);
+	$contact_type = strtolower(gf_anthill_form_setting($form, 'contact_type'));
 	
-	$customer_contact_type_id = $form['_gf_anthill_customer_contact'];
+	$customer_contact_type_id = gf_anthill_form_setting($form, 'customer_contact');
 	
-	$contact_type_item_id = $form['_gf_anthill_'.strtolower($contact_type)];
+	$contact_type_item_id = gf_anthill_form_setting($form, $contact_type);
 	
 	// Source
 	if (isset($_POST['source'])) {
@@ -32,7 +32,7 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 	// Tracking
 	$tracking_custom_fields = array();
 	foreach (anthill_sources() as $anthill_track) {
-		$fieldname = $form['_gf_anthill_tracking_'.$anthill_track];
+		$fieldname = gf_anthill_form_setting($form, 'tracking_'.$anthill_track);
 		$fieldname = $fieldname? $fieldname : $anthill_track;
 		if (isset($_COOKIE['anthill_'.$anthill_track])) {
 			$tracking_custom_fields[$fieldname] = $_COOKIE['anthill_'.$anthill_track];
