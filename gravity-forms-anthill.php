@@ -8,15 +8,39 @@
  * Author URI: http://www.anthill.co.uk/
  * Text Domain: gravity-forms-anthill
  * Domain Path: /languages
- * Requires at least: 6.5
- * Requires PHP: 8.1
+ * Requires at least: 6.0
+ * Requires PHP: 7.4
  */
 
 defined( 'ABSPATH' ) || exit;
 
 define( 'GF_ANTHILL_VERSION', '2.0.0' );
-define( 'GF_ANTHILL_MIN_GF_VERSION', '3.1.1.2' );
-define( 'GF_ANTHILL_MIN_PHP_VERSION', '8.1' );
+
+/*
+ * The floor is the release that introduced the Settings framework and the
+ * gform_form_settings_fields filter this plugin now builds its form settings
+ * with, NOT the release being targeted.
+ *
+ * Gravity Forms 3.0 removed gform_form_settings, so sites on 3.0 are already
+ * running a broken 1.x of this plugin: their Anthill form settings panel is
+ * simply gone. Refusing to load below 3.1.1.2 would strand exactly those
+ * sites, with no way forward short of a Gravity Forms upgrade they may not be
+ * ready for.
+ *
+ * Nothing added in 2.0.0 needs anything newer than 2.5: GFAPI::get_forms(),
+ * GFAPI::update_form() and GFCommon::log_debug() all long predate it. Sites on
+ * 2.5 to 2.9 therefore keep working, which matters because they are the ones
+ * whose 1.x install still functions and who would otherwise be broken BY this
+ * update rather than fixed by it.
+ */
+define( 'GF_ANTHILL_MIN_GF_VERSION', '2.5' );
+
+/*
+ * Deliberately permissive. 2.0.0 uses no syntax newer than PHP 7.0, and
+ * Gravity Forms enforces its own, stricter, PHP requirement on top of this
+ * one. A floor set higher than the code actually needs only blocks activation.
+ */
+define( 'GF_ANTHILL_MIN_PHP_VERSION', '7.4' );
 define( 'GF_ANTHILL_FILE', __FILE__ );
 define( 'GF_ANTHILL_PATH', plugin_dir_path( __FILE__ ) );
 
