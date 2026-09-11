@@ -2,11 +2,12 @@
 
 add_action( 'admin_enqueue_scripts', 'anthill_enqueue_admin_settings' );
 function anthill_enqueue_admin_settings() {
-	$wp_scripts = wp_scripts();
 
-	if (isset($_GET['page']) && $_GET['page'] == 'anthill') {
+	if (isset($_GET['page']) && 'anthill' === $_GET['page']) {
 		wp_enqueue_script('jquery-ui-tabs');
-		wp_enqueue_style('jquery-ui','https://ajax.googleapis.com/ajax/libs/jqueryui/'.$wp_scripts->registered['jquery-ui-core']->ver.'/themes/smoothness/jquery-ui.css');
+		// Tab styling lives in anthill-settings.css; jQuery UI's own theme used to
+		// be pulled from the Google CDN, which is an external dependency on an
+		// admin screen and a version that may not exist there.
 		wp_register_style('anthill_admin_settings_css', plugins_url('/css/anthill-settings.css',__FILE__), array(), GF_ANTHILL_VERSION );
 		wp_enqueue_style('anthill_admin_settings_css');
 	}
@@ -34,6 +35,13 @@ function anthill_settings() {
 	}
 
 	$updated = $error = false;
+
+	if ( isset( $_GET['anthill_refresh'] ) ) {
+		check_admin_referer( 'anthill_refresh' );
+		Anthill::ClearCache();
+		$updated = __( 'Configuration data refreshed from Anthill.', 'gravity-forms-anthill' );
+	}
+
 	if ( isset( $_POST['anthill_installation'] ) ) {
 		check_admin_referer( 'anthill_settings' );
 
@@ -70,6 +78,9 @@ function anthill_settings() {
 					try {
 						update_option( 'anthill_username', $anthill_username );
 						update_option( 'anthill_key', $anthill_key );
+
+						// Credentials changed, so anything cached under the old ones is stale.
+						Anthill::ClearCache();
 						
 						Anthill::GetLocations(); // Test connection to see if credentials work
 
@@ -147,7 +158,13 @@ function anthill_settings() {
 				'Sale Types' => Anthill::GetSaleTypes(),
 			);
 			?>
-		<h3>Configuration Data</h3>
+		<h3>
+			<?php esc_html_e( 'Configuration Data', 'gravity-forms-anthill' ); ?>
+			<a class="button button-secondary" href="<?php echo esc_url( wp_nonce_url( admin_url( 'options-general.php?page=anthill&anthill_refresh=1' ), 'anthill_refresh' ) ); ?>">
+				<?php esc_html_e( 'Refresh from Anthill', 'gravity-forms-anthill' ); ?>
+			</a>
+		</h3>
+		<p class="description"><?php esc_html_e( 'Cached for ten minutes. Refresh after changing configuration in Anthill.', 'gravity-forms-anthill' ); ?></p>
 		
 		<div id="anthill_data_tabs">
 			<ul>

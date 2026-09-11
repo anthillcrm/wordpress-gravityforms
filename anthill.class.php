@@ -1,14 +1,31 @@
 <?php
 
-define('ANTHILL_WSDL','api/v1.asmx?wsdl');
+if ( ! defined( 'ANTHILL_WSDL' ) ) {
+	define( 'ANTHILL_WSDL', 'api/v1.asmx?wsdl' );
+}
 
 
 class Anthill {
 	/*		ACCESS		*/
 	public static function GetClient() {
 		$installation = (string) get_option( 'anthill_installation' );
-//		return new SoapClient($installation . ANTHILL_WSDL, array('cache_wsdl' => WSDL_CACHE_NONE));
-		return new SoapClient($installation . ANTHILL_WSDL);
+		$wsdl         = apply_filters( 'anthill_wsdl_path', ANTHILL_WSDL );
+
+		// Without a timeout a slow or unreachable Anthill endpoint hangs the
+		// request until PHP's max_execution_time: a white admin screen, or on a
+		// submission, a lost lead.
+		$options = apply_filters(
+			'anthill_soap_options',
+			array(
+				'exceptions'         => true,
+				'connection_timeout' => 10,
+				'stream_context'     => stream_context_create(
+					array( 'http' => array( 'timeout' => 20 ) )
+				),
+			)
+		);
+
+		return new SoapClient( $installation . $wsdl, $options );
 	}
 	
 	public static function CreateAuthHeader() {
@@ -21,6 +38,112 @@ class Anthill {
 	}
 	
 
+
+	/*		CACHING		*/
+
+	/**
+	 * Cached lookup key => private fetch method.
+	 *
+	 * @return array
+	 */
+	private static function CacheKeys() {
+		return array(
+			'locations'        => 'FetchLocations',
+			'customer_types'   => 'FetchCustomerTypes',
+			'contact_types'    => 'FetchCustomerContactTypes',
+			'attachment_types' => 'FetchAttachmentTypes',
+			'enquiry_types'    => 'FetchEnquiryTypes',
+			'issue_types'      => 'FetchIssueTypes',
+			'lead_types'       => 'FetchLeadTypes',
+			'sale_types'       => 'FetchSaleTypes',
+		);
+	}
+
+	/**
+	 * Transient name, scoped to installation and account so that changing
+	 * either does not serve the previous one's configuration.
+	 *
+	 * @param string $key Lookup key.
+	 *
+	 * @return string
+	 */
+	private static function CacheKey($key) {
+		$scope = (string) get_option( 'anthill_installation' ) . '|' . (string) get_option( 'anthill_username' );
+
+		return 'anthill_' . $key . '_' . substr( md5( $scope ), 0, 12 );
+	}
+
+	/**
+	 * Runs a remote lookup at most once per cache lifetime.
+	 *
+	 * Every admin screen previously made eight blocking SOAP calls per page
+	 * load, and each submission several more to resolve field metadata.
+	 *
+	 * Failures are deliberately not cached: a brief outage should not blank the
+	 * configuration UI for the whole lifetime.
+	 *
+	 * @param string $key     Lookup key.
+	 * @param string $fetcher Private fetch method on this class.
+	 *
+	 * @return array
+	 */
+	private static function Cached($key, $fetcher) {
+		$transient = Anthill::CacheKey( $key );
+		$cached    = get_transient( $transient );
+
+		if ( is_array( $cached ) ) {
+			return $cached;
+		}
+
+		try {
+			$data = call_user_func( array( 'Anthill', $fetcher ) );
+		} catch ( Exception $e ) {
+			if ( class_exists( 'GFCommon' ) ) {
+				GFCommon::log_debug( 'Anthill::' . $fetcher . '(): ' . $e->getMessage() );
+			}
+
+			return array();
+		}
+
+		$data = is_array( $data ) ? $data : array();
+
+		set_transient( $transient, $data, (int) apply_filters( 'anthill_cache_lifetime', 10 * MINUTE_IN_SECONDS, $key ) );
+
+		return $data;
+	}
+
+	/**
+	 * Drops every cached lookup for the current installation.
+	 *
+	 * @return void
+	 */
+	public static function ClearCache() {
+		foreach ( array_keys( Anthill::CacheKeys() ) as $key ) {
+			delete_transient( Anthill::CacheKey( $key ) );
+		}
+	}
+
+	/**
+	 * One SOAP lookup returning an XML type list.
+	 *
+	 * @param string $call SOAP method name.
+	 *
+	 * @return array
+	 */
+	private static function FetchTypes($call) {
+		$client = Anthill::GetClient();
+		$header = Anthill::CreateAuthHeader();
+		$result = $client->__soapCall( $call, array(), null, $header );
+		$prop   = $call . 'Result';
+
+		if ( ! isset( $result->$prop->any ) ) {
+			return array();
+		}
+
+		$data = Anthill::ParseXML( $result->$prop->any );
+
+		return $data ? $data : array();
+	}
 
 	/*		GET	METHODS		*/
 	// test communication with Anthill endpoint - should return "Pong"
@@ -38,10 +161,19 @@ class Anthill {
 	}
 
 	// retrieves the current locations list from Anthill
-	public static function GetLocations(){  
+	public static function GetLocations(){
+		return Anthill::Cached( 'locations', 'FetchLocations' );
+	}
+
+	private static function FetchLocations(){
 		$client = Anthill::GetClient();
 		$header = Anthill::CreateAuthHeader();
 		$result = $client->__soapCall('GetLocations', array(), null, $header);
+
+		if (!isset($result->GetLocationsResult->Location)) {
+			return array();
+		}
+
 		$locations = $result->GetLocationsResult->Location;
 		if (!is_array($locations)) {
 			$locations = array($locations);
@@ -56,16 +188,12 @@ class Anthill {
 
 	
 	// retrieves the customer types from Anthill
-	public static function GetCustomerTypes(){  
-		$client = Anthill::GetClient();
-		$header = Anthill::CreateAuthHeader();
-		try {
-			$result = $client->__soapCall('GetCustomerTypes', array(), null, $header);
-			$data = Anthill::ParseXML($result->GetCustomerTypesResult->any);
-		} catch (Exception $e) {
-			$data = array();
-		}
-		return $data? $data : array();
+	public static function GetCustomerTypes(){
+		return Anthill::Cached( 'customer_types', 'FetchCustomerTypes' );
+	}
+
+	private static function FetchCustomerTypes(){
+		return Anthill::FetchTypes( 'GetCustomerTypes' );
 	}
 	public static function GetCustomerType($id){ 
 		return Anthill::GetById(Anthill::GetCustomerTypes(),$id);
@@ -80,16 +208,12 @@ class Anthill {
 	}
 	
 	// retrieves the contact types from Anthill
-	public static function GetCustomerContactTypes(){  
-		$client = Anthill::GetClient();
-		$header = Anthill::CreateAuthHeader();
-		try {
-			$result = $client->__soapCall('GetContactTypes', array(), null, $header);
-			$data = Anthill::ParseXML($result->GetContactTypesResult->any);
-			return $data? $data : array();
-		} catch (Exception $e) {
-			return array();
-		}
+	public static function GetCustomerContactTypes(){
+		return Anthill::Cached( 'contact_types', 'FetchCustomerContactTypes' );
+	}
+
+	private static function FetchCustomerContactTypes(){
+		return Anthill::FetchTypes( 'GetContactTypes' );
 	}
 	public static function GetCustomerContactType($id){ 
 		return Anthill::GetById(Anthill::GetCustomerContactTypes(),$id);
@@ -105,17 +229,13 @@ class Anthill {
 			
 	
 	// retrieves the contact types from Anthill
-	public static function GetAttachmentTypes(){  
-		$client = Anthill::GetClient();
-		$header = Anthill::CreateAuthHeader();
-		try {
-			$result = $client->__soapCall('GetAttachmentTypes', array(), null, $header);
-			$data = Anthill::ParseXML($result->GetAttachmentTypesResult->any);
-		} catch (Exception $e) {
-			$data = array();
-		}			
-		return $data? $data : array();
-	}		
+	public static function GetAttachmentTypes(){
+		return Anthill::Cached( 'attachment_types', 'FetchAttachmentTypes' );
+	}
+
+	private static function FetchAttachmentTypes(){
+		return Anthill::FetchTypes( 'GetAttachmentTypes' );
+	}
 	
 	
 
@@ -146,56 +266,40 @@ class Anthill {
 
 	
 	// retrieves the contact types from Anthill
-	public static function GetEnquiryTypes(){  
-		$client = Anthill::GetClient();
-		$header = Anthill::CreateAuthHeader();
-		try {
-			$result = $client->__soapCall('GetEnquiryTypes', array(), null, $header);
-			$data = Anthill::ParseXML($result->GetEnquiryTypesResult->any);
-		} catch (Exception $e) {
-			$data = array();
-		}				
-		return $data? $data : array();
-	}	
+	public static function GetEnquiryTypes(){
+		return Anthill::Cached( 'enquiry_types', 'FetchEnquiryTypes' );
+	}
+
+	private static function FetchEnquiryTypes(){
+		return Anthill::FetchTypes( 'GetEnquiryTypes' );
+	}
 	
 	// retrieves the contact types from Anthill
-	public static function GetIssueTypes(){  
-		$client = Anthill::GetClient();
-		$header = Anthill::CreateAuthHeader();
-		try {
-			$result = $client->__soapCall('GetIssueTypes', array(), null, $header);
-			$data = Anthill::ParseXML($result->GetIssueTypesResult->any);
-		} catch (Exception $e) {
-			$data = array();
-		}					
-		return $data? $data : array();
-	}		
+	public static function GetIssueTypes(){
+		return Anthill::Cached( 'issue_types', 'FetchIssueTypes' );
+	}
+
+	private static function FetchIssueTypes(){
+		return Anthill::FetchTypes( 'GetIssueTypes' );
+	}
 
 	// retrieves the contact types from Anthill
-	public static function GetLeadTypes(){  
-		$client = Anthill::GetClient();
-		$header = Anthill::CreateAuthHeader();
-		try {
-			$result = $client->__soapCall('GetLeadTypes', array(), null, $header);
-			$data = Anthill::ParseXML($result->GetLeadTypesResult->any);
-		} catch (Exception $e) {
-			$data = array();
-		}				
-		return $data? $data : array();
-	}	
+	public static function GetLeadTypes(){
+		return Anthill::Cached( 'lead_types', 'FetchLeadTypes' );
+	}
+
+	private static function FetchLeadTypes(){
+		return Anthill::FetchTypes( 'GetLeadTypes' );
+	}
 
 	// retrieves the contact types from Anthill
-	public static function GetSaleTypes(){  
-		$client = Anthill::GetClient();
-		$header = Anthill::CreateAuthHeader();
-		try {
-			$result = $client->__soapCall('GetSaleTypes', array(), null, $header);
-			$data = Anthill::ParseXML($result->GetSaleTypesResult->any);
-		} catch (Exception $e) {
-			$data = array();
-		}				
-		return $data? $data : array();
-	}	
+	public static function GetSaleTypes(){
+		return Anthill::Cached( 'sale_types', 'FetchSaleTypes' );
+	}
+
+	private static function FetchSaleTypes(){
+		return Anthill::FetchTypes( 'GetSaleTypes' );
+	}
 
 	private static function GetById($options,$id) {
 		foreach ($options as $type) {
