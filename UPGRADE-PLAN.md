@@ -21,7 +21,7 @@ The plugin is a *hook-based* Gravity Forms integration (not a `GFAddOn`). It add
 | `fields/class-gf-anthill-field-name.php` | Custom `anthill_name` field |
 | `fields/class-gf-anthill-field-address.php` | **Dead code** – never `require`d |
 
-**Assumption to confirm:** "3.1.1.2" is read as the **Gravity Forms** version. The plugin also talks to
+**Confirmed:** "3.1.1.2" is the current **Gravity Forms** version. The plugin also talks to
 the Anthill SOAP API pinned at `api/v1.asmx` (`anthill.class.php:3`) — if 3.1.1.2 is in fact the *Anthill*
 API version, §6 becomes the main body of work instead of a side note. The outbound network in this
 environment is firewalled, so the Gravity Forms changelog could not be fetched to confirm exact
@@ -35,11 +35,13 @@ one-hour verification pass against the real 3.1.1.2 build.
 ### 1.1 `gform_form_settings` / `gform_pre_form_settings_save` (legacy since GF 2.5)
 
 `gravity-forms-anthill-form-settings.php:5` returns **raw `<tr>`/`<th>`/`<td>` HTML strings** into
-`$form_settings['Anthill']`. This is the pre-2.5 form-settings contract. GF 2.5 replaced it with the
-Settings framework (`Gravity_Forms\Gravity_Forms\Settings\Settings`) driven by
+`$form_settings['Anthill']`. This is the pre-2.5 form-settings contract. GF 2.5 replaced it with
+the Settings framework
+(`Gravity_Forms\Gravity_Forms\Settings\Settings`) driven by
 **`gform_form_settings_fields`**, which takes a *declarative array* of field definitions. The legacy
-filter survived 2.5–2.9 only through a compatibility shim, and is the single most likely thing to have
-been dropped in 3.x.
+filter survived 2.5–2.9 only through a compatibility shim, and the changelog confirms it was
+**removed outright in 3.0**. **Any client already on 3.0 is therefore running a broken plugin
+today**: their Anthill form settings panel is simply gone.
 
 **Action — rewrite as `gform_form_settings_fields`:**
 
@@ -372,3 +374,38 @@ too high locks out legitimate sites.
 `init_anthill`, `anthill_settings`, `anthill_sources` and friends are unprefixed global function
 names with real collision potential. Renaming them is a breaking change for anything hooking them,
 so it belongs with the Phase 7 add-on rewrite rather than a guardrails pass.
+
+---
+
+## 12. Supported Gravity Forms range
+
+The minimum was initially set to the target, 3.1.1.2. That was wrong, and in the most damaging
+direction: it would have refused to load on exactly the 3.0 sites whose 1.x install is already
+broken, leaving them no route forward except a Gravity Forms upgrade they may not be ready for.
+
+The floor is now the oldest release supporting the APIs 2.0.0 actually uses —
+`gform_form_settings_fields` (2.5), plus `GFAPI::get_forms()`, `GFAPI::update_form()` and
+`GFCommon::log_debug()`, all far older.
+
+| Gravity Forms | 2.0.0 loads | Settings panel |
+|---|---|---|
+| 2.4 and earlier | no, notice shown | n/a — no Settings framework to build on |
+| 2.5 – 2.9 | yes | works; 1.x also still worked here |
+| **3.0** | **yes** | **works — 1.x is broken here** |
+| 3.1.1.2 (target) | yes | works |
+| 3.2+, or unreadable version | yes | works |
+
+Verified across all ten of those cases: the guard's verdict, whether the plugin loads at all, and
+which settings hook it ends up registering.
+
+`Requires PHP` and `Requires at least` dropped to 7.4 and 6.0 on the same reasoning. Both are
+enforced by WordPress at activation, 2.0.0 uses no syntax newer than PHP 7.0, and Gravity Forms
+applies its own stricter requirements on top — so a floor above what the code needs can only lock
+people out.
+
+### Open question for Phase 3
+
+If 3.0 removed `gform_form_settings`, it may also have removed or reworked
+**`gform_field_advanced_settings`** (`gravity-forms-anthill-form.php:81`), which draws the entire
+Anthill *field mapping* UI. If so, 3.0 and 3.1.1.2 clients cannot map fields either, and Phase 3 is
+not cleanup but a second outage to fix. Worth checking in the same changelog.
