@@ -29,16 +29,19 @@ function anthill_settings_menu() {
 }
 
 function anthill_settings() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have permission to manage Anthill settings.', 'gravity-forms-anthill' ) );
+	}
+
 	$updated = $error = false;
 	if ( isset( $_POST['anthill_installation'] ) ) {
-		// Process URL
-		$anthill_installation = esc_attr( $_POST['anthill_installation'] );
-		
-		// Process username
-		$anthill_username = esc_attr( $_POST['anthill_username'] );
-		
-		// Process key
-		$anthill_key = esc_attr( $_POST['anthill_key'] );
+		check_admin_referer( 'anthill_settings' );
+
+		// sanitize_text_field(), not esc_attr(): esc_attr() is an output
+		// escaper and would store an HTML-encoded copy of the credentials.
+		$anthill_installation = sanitize_text_field( wp_unslash( $_POST['anthill_installation'] ) );
+		$anthill_username     = isset( $_POST['anthill_username'] ) ? sanitize_text_field( wp_unslash( $_POST['anthill_username'] ) ) : '';
+		$anthill_key          = isset( $_POST['anthill_key'] ) ? sanitize_text_field( wp_unslash( $_POST['anthill_key'] ) ) : '';
 		
 		// Test ping
 		if ($anthill_installation && $anthill_username && $anthill_key ) {
@@ -86,9 +89,9 @@ function anthill_settings() {
 		}
 		
 	} else {
-		$anthill_installation = esc_attr( get_option( 'anthill_installation' ) );
-		$anthill_username = esc_attr( get_option( 'anthill_username' ) );
-		$anthill_key = esc_attr( get_option( 'anthill_key' ) );
+		$anthill_installation = (string) get_option( 'anthill_installation' );
+		$anthill_username     = (string) get_option( 'anthill_username' );
+		$anthill_key          = (string) get_option( 'anthill_key' );
 	}
 	
 	if ( $updated && !$error) {
@@ -106,25 +109,26 @@ function anthill_settings() {
 	<h1>Anthill Settings</h1>
 	<p>Please enter your settings as supplied by <a href="http://www.anthill.co.uk" target="_blank">Anthill</a>.
 	<form method="post" action="<?php print get_admin_url() ?>options-general.php?page=anthill">
+		<?php wp_nonce_field( 'anthill_settings' ); ?>
 		<p>
 			<label for="anthill_installation">Installation URL. E.g. https://yourcompany.anthillcrm.com/</label>
 			<input title="Installation URL" type="text" name="anthill_installation" id="anthill_installation" 
 				   placeholder="Enter your Installation URL here" style="padding: 6px; width:50%; display: block;" 
-				   value="<?php echo $anthill_installation; ?>">
+				   value="<?php echo esc_attr( $anthill_installation ); ?>">
 		</p>
 
 		<p>
 			<label for="anthill_username">API Username</label>
 			<input title="Username" type="text" name="anthill_username" id="anthill_username" 
 				   placeholder="Enter your username here" style="padding: 6px; width:50%; display: block;" 
-				   value="<?php echo $anthill_username; ?>">
+				   value="<?php echo esc_attr( $anthill_username ); ?>">
 		</p>
 		
 		<p>
 			<label for="anthill_key">API Key</label>
-			<input title="Key" type="text" name="anthill_key" id="anthill_key" 
+			<input title="Key" type="password" autocomplete="off" name="anthill_key" id="anthill_key" 
 				   placeholder="Enter your key here" style="padding: 6px; width:50%; display: block;" 
-				   value="<?php echo $anthill_key; ?>">
+				   value="<?php echo esc_attr( $anthill_key ); ?>">
 		</p>
 		
 		<?php submit_button(); ?>

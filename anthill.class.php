@@ -6,7 +6,7 @@ define('ANTHILL_WSDL','api/v1.asmx?wsdl');
 class Anthill {
 	/*		ACCESS		*/
 	public static function GetClient() {
-		$installation = esc_attr( get_option( 'anthill_installation' ) );
+		$installation = (string) get_option( 'anthill_installation' );
 //		return new SoapClient($installation . ANTHILL_WSDL, array('cache_wsdl' => WSDL_CACHE_NONE));
 		return new SoapClient($installation . ANTHILL_WSDL);
 	}
@@ -14,8 +14,8 @@ class Anthill {
 	public static function CreateAuthHeader() {
 		return new SoapHeader('http://www.anthill.co.uk/', 'AuthHeader',
 			array(
-				'Username' => esc_attr( get_option( 'anthill_username' ) ),
-				'Password' => esc_attr( get_option( 'anthill_key' ) ),
+				'Username' => (string) get_option( 'anthill_username' ),
+				'Password' => (string) get_option( 'anthill_key' ),
 			)
 		);
 	}
@@ -415,37 +415,6 @@ class Anthill {
 
 
 
-	// builds the customer model to be passed to Anthill
-	// populate the appropriate custom fields from your form post
-	private static function constructCustomerModel($data) {
-		$customerTypeId = esc_attr( get_option( 'anthill_customer_type_id' ) );
-		$customFields = array();
-		foreach ($data['fields'] as $var => $val) {
-			$customFields[] = Anthill::CustomField($var, $val);
-		}
-		return array(
-			'TypeId' => $data['customerID'], // customer account type
-//			'MarketingConsentGiven' => Anthill::getValue($data,'marketing-consent-given')? true : false,
-			'CustomFields' => $customFields,
-		);
-	}
-
-	// builds the lead model to be passed to Anthill
-	// populate the appropriate custom fields from your form post
-	private static function constructContactModel($data) {
-		$customFields = array();
-		foreach ($data['fields'] as $var => $val) {
-			$customFields[] = Anthill::CustomField($var, $val);
-		}		
-		return array(
-			'TypeId' => $data['typeID'], 
-//			'ExternalReference' => Anthill::getValue($data,'ksku'),
-			'CustomFields' => $customFields,
-		);
-	}
-	
-
-
 	/*		HELPER METHODS		*/
 
 	private static function CustomField($key, $value) {
@@ -545,21 +514,41 @@ function anthill_capture_source() {
 	$GET = array_change_key_case($_GET, CASE_LOWER);
 	foreach (anthill_sources() as $cookie) {
 		if (array_key_exists($cookie, $GET)) {
-			setcookie('anthill_'.$cookie, $GET[$cookie], 0, '/');
+			// Sanitised here because the value is echoed back out by the
+			// anthill_utm_source shortcode and sent on to Anthill.
+			$value = sanitize_text_field( wp_unslash( $GET[$cookie] ) );
+
+			setcookie(
+				'anthill_'.$cookie,
+				$value,
+				array(
+					'expires'  => 0,
+					'path'     => COOKIEPATH ? COOKIEPATH : '/',
+					'domain'   => COOKIE_DOMAIN,
+					'secure'   => is_ssl(),
+					'httponly' => true, // Nothing client-side reads these.
+					'samesite' => 'Lax',
+				)
+			);
+
+			// So the value is available on this request too, not just the next.
+			$_COOKIE['anthill_'.$cookie] = $value;
 		}
 	}
 	if (array_key_exists('customerid', $GET)) {
-		$anthill_customerid = $GET['customerid'];
+		$anthill_customerid = (int) $GET['customerid'];
 	}
 	if (array_key_exists('contactid', $GET)) {
-		$anthill_contactid = $GET['contactid'];
+		$anthill_contactid = (int) $GET['contactid'];
 	}
 }
 
 add_shortcode('anthill_utm_source','anthill_utm_source');
 function anthill_utm_source() {
 	if (isset($_COOKIE['anthill_utm_source'])) {
-		return $_COOKIE['anthill_utm_source'];
+		// Escaped: the cookie is attacker-controllable via the query string,
+		// and this shortcode writes it straight into the page.
+		return esc_html( wp_unslash( $_COOKIE['anthill_utm_source'] ) );
 	} else {
 		return 0;
 	}
