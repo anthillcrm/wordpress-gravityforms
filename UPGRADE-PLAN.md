@@ -161,9 +161,12 @@ which is why `…-submit.php:44-50` has to read `$_POST['input_1000']` directly 
 - Guard against ID collision — a form with 1,000+ fields is unlikely, but re-adding on every render
   means the fields are appended repeatedly if the filter runs twice. Check
   `GFFormsModel::get_field( $form, 1000 )` before appending.
-- Cast/validate: `(int) $_POST['input_1000']` is currently trusted straight into
-  `Anthill::EditCustomerDetails()` — a submitter can rewrite **any** customer record by tampering with
-  the hidden input. Sign the value (HMAC with a site salt) or drop the POST path entirely.
+- ~~Sign the hidden input~~ — **corrected**: signing it would achieve nothing. The value originates
+  from the `?customerid=` query string (`anthill.class.php`, `anthill_capture_source`), so it is
+  caller-supplied *by design*, presumably to support Anthill's outbound links. An attacker would
+  simply use the URL rather than the hidden input. The exposure is real — a submission can edit any
+  customer whose id is known — but closing it means changing the contract with Anthill's link
+  generation, which is a product decision, not a refactor. See §13.
 
 ---
 
@@ -251,7 +254,7 @@ add-on's `feed_settings_fields()`.
 | **0 — Verify** (0.5d) | Stand up WP + GF 3.1.1.2 + this plugin. Enable `WP_DEBUG`, GF logging. Record exactly what fatals/renders blank. Confirm which of §1/§2 are removals vs. deprecations. | Confirmed defect list |
 | **1 — Guardrails** ✅ *done, branch `phase-2-form-settings-framework`* | Bump header to 2.0.0; add `Requires at least`, `Requires PHP: 8.1`; runtime `version_compare( GFForms::$version, '3.1.1.2', '<' )` guard with an admin notice instead of a fatal; add `GF_ANTHILL_VERSION` constant and a text domain. | Safe to install |
 | **2 — Settings migration** ✅ *done, branch `phase-2-form-settings-framework`* | §1.1 + §1.2. Rewrite form settings onto `gform_form_settings_fields`, delete `js/gf-anthill.js`, add the meta-key read shim + one-time migration. | Form settings render on 3.1.1.2 |
-| **3 — Editor + fields** (1d) | §2.1–2.4. Update field-settings markup, widen `fieldSettings` beyond `select`, delete the dead address class, fix the hidden-field registration and the tampering hole. | Field mapping works |
+| **3 — Editor + fields** ✅ *done* | §2.1–2.4. Update field-settings markup, widen `fieldSettings` beyond `select`, delete the dead address class, fix the hidden-field registration. | Field mapping works |
 | **4 — Runtime hardening** (1–1.5d) | §3, §4, §5. PHP 8 guards, escaping, nonce, SOAP timeouts, transient caching, file-upload paths. | Clean debug log |
 | **5 — Regression** (0.5d) | Test matrix below. | Sign-off |
 
@@ -409,3 +412,52 @@ If 3.0 removed `gform_form_settings`, it may also have removed or reworked
 **`gform_field_advanced_settings`** (`gravity-forms-anthill-form.php:81`), which draws the entire
 Anthill *field mapping* UI. If so, 3.0 and 3.1.1.2 clients cannot map fields either, and Phase 3 is
 not cleanup but a second outage to fix. Worth checking in the same changelog.
+---
+
+## 13. Phase 3 — as built
+
+### Field editor (§2.1)
+
+- Both settings now carry the **`field_setting`** class. Gravity Forms hides every `.field_setting`
+  before showing the ones listed in `fieldSettings` for the selected type; without it these controls
+  were never hidden, so they lingered on field types that do not support them.
+- `fieldSettings.select` → **18 field types** (`gf_anthill_mappable_field_types()`, filterable via
+  `gf_anthill_mappable_field_types`). Text, email, phone, name and address fields could never be
+  mapped from the UI before, despite the submission handler reading a mapping from them.
+- **Stale-mapping bug fixed.** `gform_load_field_settings` only ever *set* the controls when the
+  field had a value, so selecting a mapped field and then an unmapped one left the previous field's
+  mapping on screen, ready to be saved onto the wrong field. Both controls now reset to `''`.
+- Anthill-supplied labels are escaped (`esc_html`/`esc_attr`); they were printed raw.
+- `.bind()` → `.on()`, tooltips registered via `gform_tooltips`, labels given `for` attributes.
+
+### Fields (§2.2, §2.3)
+
+- `fields/class-gf-anthill-field-address.php` **deleted** — 1,300 lines never loaded, ending in
+  `GF_Fields::register( new GF_Field_Address() )`, i.e. re-registering *core's* class.
+- `GF_Field_Anthill_Name` **kept registered but withdrawn from the editor**, rather than deleted as
+  originally proposed. Deleting a registered type that live forms may still use would leave Gravity
+  Forms unable to reconstruct those fields. `get_form_editor_button()` now returns an empty array,
+  so the duplicate "Name" button is gone and no new `anthill_name` fields can be created, while
+  existing ones keep working. **Action for the client:** audit forms for `anthill_name` fields; once
+  none remain, the class and its registration can go.
+
+### Hidden id fields (§2.4)
+
+- Injection registered on `gform_pre_validation` and `gform_pre_submission_filter` as well as
+  `gform_pre_render`, so the fields exist when the entry is built. Deliberately **not** on
+  `gform_admin_pre_render`, which would inject them into the form editor.
+- Guarded against re-appending; the filters run more than once per request.
+- Ids moved to `GF_ANTHILL_CUSTOMER_ID_FIELD` / `GF_ANTHILL_CONTACT_ID_FIELD` constants.
+- The submission handler reads the ids from `$entry` (with a `$_POST` fallback), so they are also
+  visible in the Gravity Forms entry detail for audit.
+- Three unguarded dynamic property reads in the submission handler were guarded. This is Phase 4
+  work pulled forward, because putting two more fields into the submission form would otherwise have
+  widened an existing undefined-property warning.
+
+### Still to verify against a live build
+
+- [ ] `gform_field_advanced_settings` still fires at `$position === -1` in 3.1.1.2, and the
+      `<li class="... field_setting">` + `section_label` markup is still what the sidebar expects.
+- [ ] `get_form_editor_button()` returning `array()` suppresses the button rather than rendering an
+      empty one.
+- [ ] `SetFieldProperty()` and the `gform_load_field_settings` event are unchanged.

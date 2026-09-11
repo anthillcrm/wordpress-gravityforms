@@ -41,6 +41,14 @@ define( 'GF_ANTHILL_MIN_GF_VERSION', '2.5' );
  * one. A floor set higher than the code actually needs only blocks activation.
  */
 define( 'GF_ANTHILL_MIN_PHP_VERSION', '7.4' );
+/*
+ * Ids of the hidden fields injected into every form to carry the Anthill
+ * customer and contact ids. High enough not to collide with author-created
+ * fields in any realistic form.
+ */
+define( 'GF_ANTHILL_CUSTOMER_ID_FIELD', 1000 );
+define( 'GF_ANTHILL_CONTACT_ID_FIELD', 1001 );
+
 define( 'GF_ANTHILL_FILE', __FILE__ );
 define( 'GF_ANTHILL_PATH', plugin_dir_path( __FILE__ ) );
 

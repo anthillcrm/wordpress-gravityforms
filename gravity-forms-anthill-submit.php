@@ -40,17 +40,31 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 	}
 	
 	
-	$customerid = $contactid = false;
-	if (isset($_POST['input_1000'])) {
-		$customerid = (int) $_POST['input_1000'];
-		if ($customerid && isset($_POST['input_1001'])) {
-			$contactid = (int) $_POST['input_1001'];
+	// Read from the entry, which is the record of what was actually submitted
+	// and keeps the ids visible in the Gravity Forms entry detail. The $_POST
+	// fallback covers a form where the hidden fields were not injected.
+	//
+	// NOTE: these ids arrive from the ?customerid= / ?contactid= query string
+	// (see anthill_capture_source), so they are caller-supplied by design and
+	// a submission can therefore edit any customer whose id is known. That is
+	// the existing contract with Anthill's outbound links and is deliberately
+	// left alone here; see the upgrade plan before changing it.
+	$customerid = (int) rgar( $entry, (string) GF_ANTHILL_CUSTOMER_ID_FIELD );
+	if ( ! $customerid ) {
+		$customerid = (int) rgpost( 'input_' . GF_ANTHILL_CUSTOMER_ID_FIELD );
+	}
+
+	$contactid = 0;
+	if ( $customerid ) {
+		$contactid = (int) rgar( $entry, (string) GF_ANTHILL_CONTACT_ID_FIELD );
+		if ( ! $contactid ) {
+			$contactid = (int) rgpost( 'input_' . GF_ANTHILL_CONTACT_ID_FIELD );
 		}
 	}
 	
 	// Process form data to check for Location
 	foreach ($form['fields'] as $field) {
-		$anthillField = $field->anthillField;
+		$anthillField = isset($field->anthillField) ? $field->anthillField : '';
 		if ($anthillField) {
 			if ($anthillField == 'location') {
 				$location_id = $entry[$field->id];
@@ -120,7 +134,7 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 	
 	// Process form data
 	foreach ($form['fields'] as $field) {
-		$anthillField = $field->anthillField;
+		$anthillField = isset($field->anthillField) ? $field->anthillField : '';
 		if ($anthillField) {
 			if ($anthillField == 'location') {
 				$location_id = $entry[$field->id];
@@ -220,7 +234,7 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 	
 	foreach ($form['fields'] as $field) {
 		if ($field->type == 'fileupload') {
-			$contactData['files'][] = array('file'=>$entry[$field->id],'type'=>$field->anthillFileType);
+			$contactData['files'][] = array('file'=>$entry[$field->id],'type'=>isset($field->anthillFileType) ? $field->anthillFileType : '');
 		}
 	}
 

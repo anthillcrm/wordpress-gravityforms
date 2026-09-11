@@ -77,110 +77,212 @@ function anthill_contact_type_fields($form_id) {
 	);
 }
 
-add_action('gform_field_advanced_settings', 'gform_form_field_settings_anthill', 10, 2);
+add_action( 'gform_field_advanced_settings', 'gform_form_field_settings_anthill', 10, 2 );
 
+/**
+ * Draws the Anthill mapping controls in the field editor sidebar.
+ *
+ * Both <li> elements carry the field_setting class. Gravity Forms hides every
+ * .field_setting before showing the ones listed in fieldSettings for the
+ * selected field type; without the class these settings were never hidden and
+ * so lingered on field types that do not support them.
+ *
+ * @param int $position Settings position; -1 is the end of the Advanced tab.
+ * @param int $form_id  The form being edited.
+ *
+ * @return void
+ */
+function gform_form_field_settings_anthill( $position, $form_id ) {
 
-function gform_form_field_settings_anthill($position, $form_id) {
-
-	if ($position !== -1) {
+	if ( -1 !== $position ) {
 		return;
 	}
 
-	$field_groups = array('Customer' => array(), 'Contact' => array(), 'Enquiry' => array());
+	$field_groups = array( 'Customer' => array(), 'Contact' => array(), 'Enquiry' => array() );
 
-	foreach (anthill_customer_fields($form_id) as $fieldgroup) {
-		foreach ($fieldgroup as $fid => $field) {
-			$field_groups['Customer'][$fid] = $field;
+	foreach ( anthill_customer_fields( $form_id ) as $fieldgroup ) {
+		foreach ( $fieldgroup as $fid => $field ) {
+			$field_groups['Customer'][ $fid ] = $field;
 		}
 	}
-	foreach (anthill_contact_fields($form_id) as $fieldgroup) {
-		foreach ($fieldgroup as $fid => $field) {
-			$field_groups['Contact'][$fid] = $field;
+	foreach ( anthill_contact_fields( $form_id ) as $fieldgroup ) {
+		foreach ( $fieldgroup as $fid => $field ) {
+			$field_groups['Contact'][ $fid ] = $field;
 		}
 	}
-	foreach (anthill_contact_type_fields($form_id) as $fieldgroup) {
-		foreach ($fieldgroup as $fid => $field) {
-			$field_groups['Enquiry'][$fid] = $field;
+	foreach ( anthill_contact_type_fields( $form_id ) as $fieldgroup ) {
+		foreach ( $fieldgroup as $fid => $field ) {
+			$field_groups['Enquiry'][ $fid ] = $field;
 		}
-	}	
+	}
 	?>
-	<li class="anthill_field">
-		<label class="section_label">Anthill Field</label>
-		<br />
-		<select id="anthill_field_value" onchange="SetFieldProperty('anthillField', jQuery(this).val());" >
-			<option value="">None</option>
-			<option value="location">Location</option>
+	<li class="anthill_field field_setting">
+		<label for="anthill_field_value" class="section_label">
+			<?php esc_html_e( 'Anthill Field', 'gravity-forms-anthill' ); ?>
+			<?php gform_tooltip( 'anthill_field' ); ?>
+		</label>
+		<select id="anthill_field_value" onchange="SetFieldProperty('anthillField', this.value);">
+			<option value=""><?php esc_html_e( 'None', 'gravity-forms-anthill' ); ?></option>
+			<option value="location"><?php esc_html_e( 'Location', 'gravity-forms-anthill' ); ?></option>
+			<?php foreach ( $field_groups as $group => $fields ) : ?>
+				<optgroup label="<?php echo esc_attr( $group ); ?>">
+					<?php foreach ( $fields as $fid => $field ) : ?>
+						<option value="<?php echo esc_attr( strtolower( $group ) . '_' . strtolower( $fid ) ); ?>"><?php echo esc_html( $field ); ?></option>
+					<?php endforeach; ?>
+				</optgroup>
+			<?php endforeach; ?>
+		</select>
+	</li>
+
+	<li class="anthill_file_type field_setting">
+		<label for="anthill_file_type_value" class="section_label">
+			<?php esc_html_e( 'Anthill File Type', 'gravity-forms-anthill' ); ?>
+			<?php gform_tooltip( 'anthill_file_type' ); ?>
+		</label>
+		<select id="anthill_file_type_value" onchange="SetFieldProperty('anthillFileType', this.value);">
+			<option value=""><?php esc_html_e( 'None', 'gravity-forms-anthill' ); ?></option>
+			<?php foreach ( gf_anthill_lookup( 'GetAttachmentTypes' ) as $option ) : ?>
+				<?php if ( is_object( $option ) && isset( $option->id ) ) : ?>
+					<option value="<?php echo esc_attr( $option->id ); ?>"><?php echo esc_html( $option->name ); ?></option>
+				<?php endif; ?>
+			<?php endforeach; ?>
+		</select>
+	</li>
 	<?php
-	foreach ($field_groups as $group => $fields) {
-		?><optgroup label="<?php print $group ?>"><?php
-		foreach ($fields as $fid => $field) {
-			?><option value="<?php print strtolower($group) ?>_<?php print strtolower($fid) ?>"><?php print $field ?></option><?php
+}
+
+add_filter( 'gform_tooltips', 'gform_anthill_tooltips' );
+
+/**
+ * @param array $tooltips Registered editor tooltips.
+ *
+ * @return array
+ */
+function gform_anthill_tooltips( $tooltips ) {
+	$tooltips['anthill_field'] = '<h6>' . esc_html__( 'Anthill Field', 'gravity-forms-anthill' ) . '</h6>'
+		. esc_html__( 'The Anthill customer, contact or activity field this form field is written to on submission.', 'gravity-forms-anthill' );
+
+	$tooltips['anthill_file_type'] = '<h6>' . esc_html__( 'Anthill File Type', 'gravity-forms-anthill' ) . '</h6>'
+		. esc_html__( 'The Anthill attachment type uploads from this field are filed under.', 'gravity-forms-anthill' );
+
+	return $tooltips;
+}
+
+add_action( 'gform_editor_js', 'gform_anthill_editor_script' );
+
+/**
+ * Registers the Anthill settings against the field types that can carry a value,
+ * and syncs the controls when a field is selected.
+ *
+ * @return void
+ */
+function gform_anthill_editor_script() {
+	?>
+	<script type="text/javascript">
+		( function () {
+			// Previously only fieldSettings.select, which left every other mapped
+			// field type - text, email, phone, name, address - with no way to set
+			// a mapping even though the submission handler reads one.
+			var anthillMappable = <?php echo wp_json_encode( gf_anthill_mappable_field_types() ); ?>;
+
+			for ( var i = 0; i < anthillMappable.length; i++ ) {
+				if ( typeof fieldSettings[ anthillMappable[ i ] ] !== 'undefined' ) {
+					fieldSettings[ anthillMappable[ i ] ] += ', .anthill_field';
 				}
-				?></optgroup><?php
-				}
-				?>
-		</select>
-	</li>
-	
-	<li class="anthill_file_type">
-		<label class="section_label">Anthill File Type</label>
-		<br />
-		<select id="anthill_file_type_value" onchange="SetFieldProperty('anthillFileType', jQuery(this).val());" >
-			<option value="">None</option>
-			<?php
-			$options = Anthill::GetAttachmentTypes();
-			foreach ($options as $i => $option) {
-				echo '<option value="'.$option->id.'">'.$option->name.'</option>';
 			}
-			?>
-		</select>
-	</li>
-	
-			<?php
-		}
 
-//Action to inject supporting script to the form editor page
-		add_action('gform_editor_js', 'gform_anthill_editor_script');
-
-		function gform_anthill_editor_script() {
-			?>
-	<script type='text/javascript'>
-		//adding setting to fields of type "text"
-		fieldSettings.select += ", .anthill_field";
-		fieldSettings.fileupload += ", .anthill_file_type";
-
-		//binding to the load field settings event to initialize the checkbox
-		jQuery(document).bind("gform_load_field_settings", function (event, field, form) {
-			if (field["anthillField"]) {
-				jQuery("#anthill_field_value").val(field["anthillField"]);
+			if ( typeof fieldSettings.fileupload !== 'undefined' ) {
+				fieldSettings.fileupload += ', .anthill_file_type';
 			}
-			if (field["anthillFileType"]) {
-				jQuery("#anthill_file_type_value").val(field["anthillFileType"]);
-			}
-		});
+		} )();
+
+		jQuery( document ).on( 'gform_load_field_settings', function ( event, field, form ) {
+			// The empty-string fallbacks matter: without them the controls kept
+			// the previously selected field's mapping when moving to a field that
+			// has none, inviting the wrong mapping to be saved.
+			jQuery( '#anthill_field_value' ).val( field.anthillField || '' );
+			jQuery( '#anthill_file_type_value' ).val( field.anthillFileType || '' );
+		} );
 	</script>
 	<?php
 }
 
+/**
+ * Field types that can hold a value worth sending to Anthill.
+ *
+ * @return array
+ */
+function gf_anthill_mappable_field_types() {
+	return apply_filters(
+		'gf_anthill_mappable_field_types',
+		array(
+			'text', 'textarea', 'select', 'multiselect', 'radio', 'checkbox', 'number',
+			'name', 'anthill_name', 'address', 'phone', 'email', 'website', 'date',
+			'time', 'hidden', 'list', 'consent',
+		)
+	);
+}
+
 /* 	Pre-build form if Cookies are set */
-add_filter('gform_pre_render','gform_anthill_pre_render_cookies',10,3);
-function gform_anthill_pre_render_cookies($form, $ajax, $field_values) {
-	$customerIdField = new GF_Field_Hidden(array(
-		'label' => 'customerId',
-		'allowsPrepopulate' => true,
-		'id' => 'customerId',
-	));	
-	$customerIdField->id = 1000;
-	$contactIdField = new GF_Field_Hidden(array(
-		'label' => 'contactId',
-		'allowsPrepopulate' => true,
-		'id' => 'contactId',
-	));
-	$contactIdField->id = 1001;
-	$form['fields'][] = $customerIdField;
-	$form['fields'][] = $contactIdField;
-	
+add_filter( 'gform_pre_render', 'gform_anthill_pre_render_cookies' );
+add_filter( 'gform_pre_validation', 'gform_anthill_pre_render_cookies' );
+add_filter( 'gform_pre_submission_filter', 'gform_anthill_pre_render_cookies' );
+
+/**
+ * Injects the hidden customer and contact id fields.
+ *
+ * Registered on validation and submission as well as render: previously it ran
+ * on gform_pre_render alone, so the fields did not exist by the time the entry
+ * was built and the submission handler had to read $_POST directly.
+ *
+ * @param array $form The form object.
+ *
+ * @return array
+ */
+function gform_anthill_pre_render_cookies( $form ) {
+	$injected = array(
+		GF_ANTHILL_CUSTOMER_ID_FIELD => 'customerId',
+		GF_ANTHILL_CONTACT_ID_FIELD  => 'contactId',
+	);
+
+	foreach ( $injected as $field_id => $label ) {
+
+		// The filters run more than once per request; without this the fields
+		// were appended again on each pass.
+		if ( gform_anthill_get_field( $form, $field_id ) ) {
+			continue;
+		}
+
+		$field = new GF_Field_Hidden(
+			array(
+				'label'             => $label,
+				'allowsPrepopulate' => true,
+				'id'                => $field_id,
+			)
+		);
+		$field->id     = $field_id;
+		$field->formId = rgar( $form, 'id' );
+
+		$form['fields'][] = $field;
+	}
+
 	return $form;
+}
+
+/**
+ * @param array $form     The form object.
+ * @param int   $field_id Field id to look for.
+ *
+ * @return GF_Field|false
+ */
+function gform_anthill_get_field( $form, $field_id ) {
+	foreach ( rgar( $form, 'fields', array() ) as $field ) {
+		if ( (int) $field->id === (int) $field_id ) {
+			return $field;
+		}
+	}
+
+	return false;
 }
 
 
@@ -324,9 +426,9 @@ function gform_anthill_field_value($value, $field, $name) {
 				}
 				break;
 		}
-	} elseif ($field->id == '1000') {
+	} elseif ((int) $field->id === GF_ANTHILL_CUSTOMER_ID_FIELD) {
 		$value = $anthill_customerid;
-	} elseif ($field->id == '1001') {
+	} elseif ((int) $field->id === GF_ANTHILL_CONTACT_ID_FIELD) {
 		$value = $anthill_contactid;
 	}
 
