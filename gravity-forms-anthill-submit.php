@@ -9,18 +9,18 @@ add_action( 'gform_after_submission', 'gravity_forms_anthill_after_submission', 
 function gravity_forms_anthill_after_submission( $entry, $form ) {
     
 	//
-	$source = $form['_gf_anthill_source'];
+	$source = gf_anthill_form_setting($form, 'source', 'Website');
 	$source	= $source? $source : 'Website';
 	
-	$location_id = $form['_gf_anthill_location'];
+	$location_id = gf_anthill_form_setting($form, 'location');
 	
-	$customer_type_id = $form['_gf_anthill_customer'];
+	$customer_type_id = gf_anthill_form_setting($form, 'customer');
 	
-	$contact_type = strtolower($form['_gf_anthill_contact_type']);
+	$contact_type = strtolower(gf_anthill_form_setting($form, 'contact_type'));
 	
-	$customer_contact_type_id = $form['_gf_anthill_customer_contact'];
+	$customer_contact_type_id = gf_anthill_form_setting($form, 'customer_contact');
 	
-	$contact_type_item_id = $form['_gf_anthill_'.strtolower($contact_type)];
+	$contact_type_item_id = gf_anthill_form_setting($form, $contact_type);
 	
 	// Source
 	if (isset($_POST['source'])) {
@@ -32,7 +32,7 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 	// Tracking
 	$tracking_custom_fields = array();
 	foreach (anthill_sources() as $anthill_track) {
-		$fieldname = $form['_gf_anthill_tracking_'.$anthill_track];
+		$fieldname = gf_anthill_form_setting($form, 'tracking_'.$anthill_track);
 		$fieldname = $fieldname? $fieldname : $anthill_track;
 		if (isset($_COOKIE['anthill_'.$anthill_track])) {
 			$tracking_custom_fields[$fieldname] = $_COOKIE['anthill_'.$anthill_track];
@@ -40,17 +40,31 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 	}
 	
 	
-	$customerid = $contactid = false;
-	if (isset($_POST['input_1000'])) {
-		$customerid = (int) $_POST['input_1000'];
-		if ($customerid && isset($_POST['input_1001'])) {
-			$contactid = (int) $_POST['input_1001'];
+	// Read from the entry, which is the record of what was actually submitted
+	// and keeps the ids visible in the Gravity Forms entry detail. The $_POST
+	// fallback covers a form where the hidden fields were not injected.
+	//
+	// NOTE: these ids arrive from the ?customerid= / ?contactid= query string
+	// (see anthill_capture_source), so they are caller-supplied by design and
+	// a submission can therefore edit any customer whose id is known. That is
+	// the existing contract with Anthill's outbound links and is deliberately
+	// left alone here; see the upgrade plan before changing it.
+	$customerid = (int) rgar( $entry, (string) GF_ANTHILL_CUSTOMER_ID_FIELD );
+	if ( ! $customerid ) {
+		$customerid = (int) rgpost( 'input_' . GF_ANTHILL_CUSTOMER_ID_FIELD );
+	}
+
+	$contactid = 0;
+	if ( $customerid ) {
+		$contactid = (int) rgar( $entry, (string) GF_ANTHILL_CONTACT_ID_FIELD );
+		if ( ! $contactid ) {
+			$contactid = (int) rgpost( 'input_' . GF_ANTHILL_CONTACT_ID_FIELD );
 		}
 	}
 	
 	// Process form data to check for Location
 	foreach ($form['fields'] as $field) {
-		$anthillField = $field->anthillField;
+		$anthillField = isset($field->anthillField) ? $field->anthillField : '';
 		if ($anthillField) {
 			if ($anthillField == 'location') {
 				$location_id = $entry[$field->id];
@@ -120,7 +134,7 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 	
 	// Process form data
 	foreach ($form['fields'] as $field) {
-		$anthillField = $field->anthillField;
+		$anthillField = isset($field->anthillField) ? $field->anthillField : '';
 		if ($anthillField) {
 			if ($anthillField == 'location') {
 				$location_id = $entry[$field->id];
@@ -161,7 +175,7 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 						}
 						if ($anthillFieldData) {							
 							$anthillFieldName = $anthillFieldData->label;
-							if ($field->inputs) {
+							if (!empty($field->inputs)) {
 								$values = array();
 								foreach($field->inputs as $i => $input) {
 									$inputkey = isset($field->inputs[$i]) ? $field->inputs[$i]['id']: false;
@@ -219,8 +233,28 @@ function gravity_forms_anthill_after_submission( $entry, $form ) {
 	
 	
 	foreach ($form['fields'] as $field) {
-		if ($field->type == 'fileupload') {
-			$contactData['files'][] = array('file'=>$entry[$field->id],'type'=>$field->anthillFileType);
+		if ($field->type != 'fileupload') {
+			continue;
+		}
+
+		$value = rgar($entry, (string) $field->id);
+		if (!$value) {
+			continue; // Nothing uploaded; previously queued an empty attachment.
+		}
+
+		// A multi-file field stores a JSON array of URLs, a single-file field one
+		// URL. The whole JSON string used to be handed over as a single filename.
+		$urls = json_decode($value, true);
+		if (!is_array($urls)) {
+			$urls = array($value);
+		}
+
+		$fileType = isset($field->anthillFileType) ? $field->anthillFileType : '';
+
+		foreach ($urls as $url) {
+			if (is_string($url) && $url) {
+				$contactData['files'][] = array('file' => $url, 'type' => $fileType);
+			}
 		}
 	}
 
