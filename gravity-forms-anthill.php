@@ -3,7 +3,7 @@
 /**
  * Plugin Name: Gravity Forms - Anthill Integration
  * Description: An add-on for Gravity Forms that sends form submissions to Anthill.
- * Version: 2.0.0
+ * Version: 2.1.0
  * Author: Anthill
  * Author URI: http://www.anthill.co.uk/
  * Text Domain: gravity-forms-anthill
@@ -14,7 +14,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'GF_ANTHILL_VERSION', '2.0.0' );
+define( 'GF_ANTHILL_VERSION', '2.1.0' );
 
 /*
  * The floor is the release that introduced the Settings framework and the
